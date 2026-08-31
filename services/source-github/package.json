@@ -1,0 +1,13 @@
+{
+  "name": "@blogagent/source-github",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "@blogagent/config": "*",
+    "@blogagent/envelope": "*",
+    "@blogagent/sink-github": "*",
+    "yaml": "^2.9.0"
+  }
+}

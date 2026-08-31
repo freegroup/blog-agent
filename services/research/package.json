@@ -1,0 +1,13 @@
+{
+  "name": "@blogagent/research",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "@blogagent/config": "*",
+    "@blogagent/envelope": "*",
+    "@blogagent/chat": "*",
+    "@blogagent/http": "*"
+  }
+}

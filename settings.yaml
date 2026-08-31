@@ -1,0 +1,157 @@
+# Betriebsparameter. Keine Secrets (die kommen aus der Umgebung, siehe .env.example),
+# keine Sink-URLs (die stehen im Briefing), nichts Fachliches (auch Briefing).
+
+newsroom:
+  port: 5080
+  queue_dir: ./var/queue
+  briefings_dir: ./briefings
+  max_attempts: 3
+  # Pause vor dem naechsten Versuch, waechst mit der Versuchsnummer. Ohne sie
+  # verbraucht ein kurz nicht erreichbares Ollama alle Versuche in einer Sekunde.
+  retry_pause_s: 30
+  retention_h: 24
+
+  # Die Pipeline. Reihenfolge = diese Liste; jede Stufe bekommt das Ergebnis
+  # ihrer Vorgaengerin. Eine Stufe einschieben (z.B. uebersetzen) heisst: eine
+  # Datei in pipeline/, ein Eintrag hier. Keine andere Stufe aendert sich.
+  # article platziert Bild-Platzhalter im Text, illustrate erzeugt sie DANACH mit
+  # dem echten Absatz als Kontext (bessere, passendere Bilder).
+  pipeline: [plot, article, illustrate, description, title, slug]
+
+  # Je Stufe: welches LLM-Profil aus `llm-profiles:`, und ob sie Fachwerkzeuge bekommt.
+  #   llm: null  → Stufe rechnet selbst, ohne Modell
+  #   tools:true → MCP-Werkzeuge werden angeboten
+  stages:
+    plot:        { llm: default, tools: true }
+    article:     { llm: default, tools: true }
+    # Bild-Prompts aus dem Textkontext schreiben: das staerkere default-Modell.
+    illustrate:  { llm: default }
+    description: { llm: quick }
+    title:       { llm: quick }
+    # slug rechnet frisch modellfrei (slugify); bei einer Revision fragt es das
+    # Modell nur, OB der Review eine Umbenennung verlangt.
+    slug:        { llm: quick }
+
+# MCP-Server, die der Newsroom als Kindprozesse startet.
+# Schluessel = Name, Wert = Kommandozeile.
+mcp:
+  calc: node services/mcp-calc/index.js
+
+# Benannte Profile. Jede Pipeline-Stufe waehlt eines — so kann der Artikel ein
+# grosses Modell bekommen und der Titel ein schnelles.
+llm-profiles:
+  # 3.5-Flash-Generation statt Pro/-latest: die Pro-Kapazitaet (und die
+  # -latest-Aliase) liefern unter Last dauerhaft 503; gemini-3.5-flash ist
+  # verfuegbar, guenstiger und kann Multi-Round-Tool-Calls (live geprueft, der
+  # thought_signature-Fix im openai-compatible-Adapter greift).
+  default:
+    provider: gemini
+    model: gemini-3.5-flash
+    max_tokens: 16000
+
+  # Fuer die leichten Stufen (illustrate/description/title): noch guenstiger,
+  # reicht dort voellig.
+  quick:
+    provider: gemini
+    model: gemini-3.5-flash-lite
+    max_tokens: 2000
+
+stt:
+  # Google Gemini, nativ über :generateContent — das Audio geht inline als OGG in
+  # den Aufruf (der OpenAI-kompatible input_audio nimmt nur wav/mp3, Telegram
+  # liefert aber OGG/Opus). Derselbe GEMINI_API_KEY wie die gemini-LLM-Profile,
+  # kein eigener Dienst. Lokaler Whisper bleibt als Alternative:
+  #   provider: whisper-http, base_url: http://localhost:8000/v1, model: whisper-1
+  provider: google
+  base_url: https://generativelanguage.googleapis.com/v1beta
+  model: gemini-3.5-flash
+  language: de
+
+# Optionaler Bild-Generator. Der `illustrate`-Schritt erzeugt damit ein Titelbild,
+# wenn ein Pitch ohne Bild kommt UND das Briefing eines wuenscht. Ohne diesen
+# Abschnitt ist der Schritt schlicht ein No-op. Key: GEMINI_API_KEY (siehe .env.example)
+# — derselbe Key wie fuer die `gemini`-LLM-Profile.
+image:
+  provider: google
+  base_url: https://generativelanguage.googleapis.com/v1beta
+  # Nano-Banana-3-Generation. flash-image statt pro-image: pro ist chronisch
+  # ueberlastet (dauerhaft 503, auch nach Retries), flash ist verfuegbar,
+  # guenstiger und liefert 4K/fotorealistisch mehr als genug. Realismus steuert
+  # ohnehin der Briefing-Prompt. (pro-image = gemini-3-pro-image, wenn wieder frei.)
+  model: gemini-3.1-flash-image
+
+sink-github:
+  port: 5081
+  # Fuer GitHub Enterprise z.B. https://github.example.com/api/v3
+  api_url: https://api.github.com
+  repo: freegroup/CampingElectricCalculator
+  # Default-Branch des Repos ist master (nicht main) — PRs gehen dagegen.
+  base_branch: master
+  # Ein selbsttragendes Verzeichnis pro Artikel: index.md + alle Bilder/Videos
+  # liegen zusammen unter dem Slug (wie ein Hugo/Astro "page bundle", und wie der
+  # lokale File-Sink es schreibt). Die Bild-Referenzen im Markdown sind blanke
+  # Dateinamen (![](foto-1.webp)) und loesen so relativ im selben Ordner auf —
+  # kein Suchen, keine Namenskonflikte, das ganze Verzeichnis ist wegwerfbar.
+  content_path: content/blog/{slug}/index.md
+  asset_path: content/blog/{slug}/{name}
+  # Maschinen-Doc neben dem Artikel: die Wahrheit, die eine Revision zurückliest
+  # (plot, slug, image_names, …). Keine Dotfile — die Build-Pipeline muss sie ignorieren.
+  meta_path: content/blog/{slug}/blogagent.yaml
+  label: blogagent
+  max_image_bytes: 2097152
+  mcp: node services/mcp-telegram/index.js
+
+sink-file:
+  port: 5082
+  target_dir: ./var/sink
+  image_width: 1600
+  max_image_bytes: 2097152
+
+sink-deadletter:
+  port: 5083
+  mcp: node services/mcp-telegram/index.js
+  # Endgueltig gescheiterte Pitches landen zusaetzlich als Markdown hier (Grund +
+  # Original-Pitch) — die Telegram-Meldung scrollt weg, die Datei bleibt zum Debuggen.
+  dir: ./var/deadletter
+
+source-telegram:
+  poll_seconds: 5
+  mcp: node services/mcp-telegram/index.js
+  # Where a fresh pitch goes next (full endpoint URL, required). Normally the
+  # research filter, which enriches and forwards to the newsroom — but it is just
+  # a URL, so this source could also point straight at the newsroom.
+  out: http://127.0.0.1:5085/pitches
+
+source-github:
+  api_url: https://api.github.com
+  repo: freegroup/CampingElectricCalculator
+  poll_seconds: 60
+  ack_stale_min: 15
+  ack_text: "→ weitergeleitet an die Fachabteilung"
+  # Revisions skip research (the facts already live in blogagent.yaml) and post
+  # straight to the newsroom.
+  out: http://127.0.0.1:5080/pitches
+
+# The research filter in front of the newsroom: enriches each pitch's envelope
+# once with `context` (target URL from the text or the chat history) and forwards
+# it to `out`. Same REST interface as the newsroom (POST /pitches in, POST out),
+# so filters chain freely. `out` is required — a research with nowhere to deliver
+# is a dead end. Reads the chat hub to resolve back-references ("the last URL").
+research:
+  port: 5085
+  out: http://127.0.0.1:5080/pitches
+
+# Der Chat-Hub: einziges Protokoll der Konversation mit dem User + Live-Broadcast
+# (SSE) an alle Subscriber. Producer schieben per POST /messages rein.
+chat:
+  port: 5090
+  file: ./var/chat/history.jsonl
+
+# Watcht den RSS-Feed der Blog-Seite und meldet neue, live erreichbare Beitraege
+# auf Telegram (und in den Chat-Hub). Das "ist online"-Signal, das PR-Merge +
+# Deploy sonst nicht liefern.
+watch-rss:
+  feed_url: https://camper-elektrik-planer.de/blog/feed.xml
+  poll_seconds: 60
+  seen_file: ./var/watch-rss-seen.json
+  mcp: node services/mcp-telegram/index.js

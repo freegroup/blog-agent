@@ -1,0 +1,23 @@
+{
+  "name": "blogagent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared/*",
+    "tools/*",
+    "services/*"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test shared/*/test/*.test.js services/*/test/*.test.js tools/*/test/*.test.js",
+    "start": "pm2 start ecosystem.config.cjs",
+    "stop": "pm2 delete ecosystem.config.cjs",
+    "start:local": "pm2 start ecosystem.local.config.cjs",
+    "stop:local": "pm2 delete ecosystem.local.config.cjs",
+    "logs": "pm2 logs",
+    "chat-id": "node services/mcp-telegram/chat-id.js"
+  }
+}

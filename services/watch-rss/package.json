@@ -1,0 +1,13 @@
+{
+  "name": "@blogagent/watch-rss",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "@blogagent/config": "*",
+    "@blogagent/http": "*",
+    "@blogagent/mcp": "*",
+    "@blogagent/chat": "*"
+  }
+}

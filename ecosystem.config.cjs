@@ -1,0 +1,83 @@
+/**
+ * pm2 configuration.
+ *
+ *   pm2 start ecosystem.config.cjs
+ *   pm2 logs
+ *   pm2 stop all
+ *
+ * Five processes. The MCP servers (mcp-calc, mcp-telegram) are deliberately
+ * NOT listed here: they are started and stopped as child processes via stdio
+ * by the services that need them. Starting them additionally via pm2 would
+ * create two instances — for mcp-telegram that is fatal because two pollers
+ * with the same token get a 409 from Telegram.
+ *
+ * `cwd` is the repo root everywhere: settings.yaml, briefings/, and var/queue/
+ * are resolved relative to it.
+ */
+const shared = {
+  cwd: __dirname,
+  autorestart: true,
+  max_restarts: 10,
+  restart_delay: 5000,
+  time: true,
+  merge_logs: true,
+  out_file: "var/log/out.log",
+  error_file: "var/log/err.log",
+};
+
+module.exports = {
+  apps: [
+    {
+      // The conversation record + live broadcaster (SSE). Producers POST into it.
+      name: "chat",
+      script: "services/chat/index.js",
+      ...shared,
+    },
+    {
+      // Accepts pitches, writes articles, submits to the sink. Holds the queue.
+      name: "newsroom",
+      script: "services/newsroom/index.js",
+      ...shared,
+    },
+    {
+      // The research filter: enriches each fresh pitch with `context`, forwards to
+      // the newsroom (its `out`). Started after the newsroom. No secrets.
+      name: "research",
+      script: "services/research/index.js",
+      ...shared,
+    },
+    {
+      // Creates PRs. Holds the GitHub PAT.
+      name: "sink-github",
+      script: "services/sink-github/index.js",
+      ...shared,
+    },
+    {
+      // Reports whatever has permanently failed. Without it a failure is silent.
+      name: "sink-deadletter",
+      script: "services/sink-deadletter/index.js",
+      ...shared,
+    },
+    {
+      // Long-polling on Telegram. fork mode, one process — see above. `instances`
+      // would switch pm2 to cluster mode, which is for port-sharing HTTP servers.
+      name: "source-telegram",
+      script: "services/source-telegram/index.js",
+      exec_mode: "fork",
+      ...shared,
+    },
+    {
+      // Return channel: PR comments become revision pitches.
+      name: "source-github",
+      script: "services/source-github/index.js",
+      ...shared,
+    },
+    {
+      // Watches the blog RSS feed; reports newly live posts to Telegram + chat hub.
+      name: "watch-rss",
+      script: "services/watch-rss/index.js",
+      exec_mode: "fork",
+      ...shared,
+    },
+  ],
+};

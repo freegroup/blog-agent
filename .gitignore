@@ -1,0 +1,10 @@
+node_modules/
+var/
+.env
+*.log
+
+# Local Claude Code state: machine-specific permission rules from other projects.
+.claude/settings.local.json
+
+# Personal helper that references the company LLM-proxy setup — not part of the app.
+claude-set-default.sh
