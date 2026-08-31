@@ -15,14 +15,18 @@ Arbeitsdokument. Stand 31.08.2026 (an die Implementierung angeglichen).
 **Vorwärts** · Impuls → Artikel → PR
 
 ```
-   Telegram ──┐
-              ├─ source-telegram ─┐
-   PR-Komm. ──┴─ source-github  ──┴──►  newsroom  ──►  sink-github  ──►  PR ──►[ Merge ]──► Blog
-                                        (Pipeline)          │                        (Zielsystem
-                                            │               └─ auch: sink-file (Debug),  baut/deployt)
-                                            │                        sink-deadletter (Fehler)
-                                            └─ nutzt: mcp-calc · tools/{llm, image, stt}
+   Telegram  ─►  source-telegram  ─►  research  ─┐   (research reichert den Envelope um `context` an)
+                                                  ▼
+   PR-Komm.  ─►  source-github  ──────────────►  newsroom  ─►  sink-github  ─►  PR ─►[ Merge ]─► Blog
+              (Revision: überspringt research)    (Pipeline)       │              (Zielsystem baut/deployt)
+                                                      │            └─ auch: sink-file (Debug), sink-deadletter (Fehler)
+                                                      └─ nutzt: mcp-calc · tools/{llm, image, stt}
 ```
+
+Sources und Filter reden dasselbe REST (`POST /pitches` rein, `POST` an ihr `out` raus),
+darum sind sie verkettbar: `source-telegram` schickt an `research`, `research` an den `newsroom`.
+`source-github` (Revision) überspringt `research` und postet direkt in den Newsroom — die Fakten
+stehen schon im `blogagent.yaml`. Jedes `out` steht in `settings.yaml`.
 
 **Rückwärts** · Rückmeldung an den User
 
@@ -54,6 +58,7 @@ Support-Ebene (nicht im Bild): `mcp-telegram` hält den Telegram-Token (Gateway 
 | Prozess | Port | Rolle |
 |---|---|---|
 | `newsroom` | 5080 | Nimmt Pitches an, fährt die Pipeline, liefert an die Sinks. Hält die Queue. |
+| `research` | 5085 | Filter vor dem Newsroom: reichert den Envelope um `context` an, reicht an `out` weiter. |
 | `sink-github` | 5081 | Legt PRs an (Verzeichnis-Bundle je Artikel). Hält Repo + Token. **Validiert nicht — liefert nur aus.** |
 | `sink-file` | 5082 | Debug-Spiegel (`logging-sink`): schreibt `var/sink/<slug>/`. Keine Secrets. |
 | `sink-deadletter` | 5083 | Endgültig gescheiterte Pitches → Telegram + Datei `var/deadletter/<id>.yaml`. |
@@ -92,7 +97,8 @@ Die einzige Form, in der ein Impuls die Redaktion erreicht. Jede Source normalis
   "media": [{ "kind": "image", "mime": "image/jpeg", "data": "<base64>" }],
   "revises": null,
   "doc": null,
-  "review": []
+  "review": [],
+  "context": null
 }
 ```
 
@@ -103,6 +109,9 @@ Die einzige Form, in der ein Impuls die Redaktion erreicht. Jede Source normalis
 - `doc` / `review` (**nur bei Revision**): `doc` ist das zurückgelesene `blogagent.yaml` (die
   Wahrheit des Artikels), `review` der Kommentarverlauf. Jede Pipeline-Stufe sieht beides und
   entscheidet auf ihren eigenen Feldern, ob sie durchreicht, anpasst oder neu macht (§4).
+- `context`: die geteilten Fakten, die der `research`-Filter einmal pro Pitch anreichert
+  (Ziel-URL & Referenzen, §8). `null`, wenn eine Source direkt in den Newsroom postet. Fließt in
+  jeden Job-Doc und damit ins `blogagent.yaml`.
 - Kein `trust`-Feld (im Ur-Entwurf vorgesehen, nicht umgesetzt — siehe §9).
 
 ### Redaktions-API
