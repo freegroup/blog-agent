@@ -2,6 +2,8 @@
 import { loadSettings, section } from "@blogagent/config";
 import { makeEnvelope } from "@blogagent/envelope";
 import { createStt } from "@blogagent/stt";
+import { createLlm } from "@blogagent/llm";
+import { tidySentence } from "@blogagent/tidy";
 import { connectOne } from "@blogagent/mcp";
 import { postMessage } from "@blogagent/chat";
 
@@ -12,9 +14,10 @@ import { postMessage } from "@blogagent/chat";
  * Transcription happens here; the newsroom only ever sees text.
  * Voice is a channel detail, not a system concern.
  *
- * The sender gets an immediate receipt back in the chat (and, for a voice
- * message, the transcript to gegenlesen). The final result — the PR link —
- * still comes later from the sink, not here.
+ * The request is tidied first (typos and clumsy sentence structure, nothing more):
+ * that cleaned form is what the envelope carries downstream AND what is mirrored
+ * back into the chat, so the sender can proofread what actually arrived. The final
+ * result — the PR link — still comes later from the sink, not here.
  */
 const settings = loadSettings();
 const cfg = section(settings, "source-telegram");
@@ -25,12 +28,13 @@ const POLL_S = cfg.num("poll_seconds", 5);
 const OUT = cfg.str("out");
 
 const stt = await createStt(section(settings, "stt"));
+// Which model tidies the request is a settings choice, like every other LLM use.
+const llm = await createLlm(section(settings, `llm-profiles.${cfg.str("llm")}`));
 const telegram = await connectOne(cfg.str("mcp", "node services/mcp-telegram/index.js"), "source-telegram");
 
 async function toEnvelope(msg) {
   const media = [];
   let text = msg.text ?? "";
-  let transcript = null;
 
   if (msg.photo) {
     const { data } = await telegram.callJson("load_file", { file_id: msg.photo });
@@ -46,7 +50,6 @@ async function toEnvelope(msg) {
         audio: Buffer.from(data, "base64"),
         mime: msg.audio.mime,
       });
-      transcript = heard;
       text = [text, heard].filter(Boolean).join("\n\n");
       console.log(`[source-telegram] transcribed: ${heard.slice(0, 80)}…`);
     } catch (err) {
@@ -57,33 +60,43 @@ async function toEnvelope(msg) {
 
   if (!text.trim() && !media.length) return null;
 
+  // Smooth typos and clumsy phrasing before anything else sees the text. This
+  // cleaned form becomes the envelope AND the receipt — never the raw input. A
+  // tidy failure must not drop the message, so we keep the raw text then.
+  let request = text;
+  if (text.trim()) {
+    try {
+      request = await tidySentence(text, llm);
+    } catch (err) {
+      console.error(`[source-telegram] tidy failed, using raw text: ${err.message}`);
+    }
+  }
+
   const envelope = makeEnvelope({
     source: "telegram",
     source_ref: `chat:${msg.chat_id}/msg:${msg.message_id}`,
-    text,
+    text: request,
     media,
   });
-  return { envelope, transcript };
+  return { envelope, request };
 }
 
 /**
- * A receipt back into the chat so the sender knows the impulse landed and work
- * has begun. For a voice message it also echoes the transcript — the one case
- * where the sender cannot see what actually arrived and wants to catch a
- * misheard word early. Never throws: a failed courtesy must not drop the
- * message from the poll loop.
+ * Mirror the tidied request back into the chat so the sender can proofread what
+ * actually arrived — the one point where a dictated or thumb-typed message can be
+ * caught if it came out wrong. What follows ("Ich schreibe … für die Briefings")
+ * comes later from the newsroom, which knows the channels; this only confirms the
+ * request. Never throws: a failed courtesy must not drop the message from the poll
+ * loop. No chat-history write here — mcp-telegram records every outbound message.
  */
-async function acknowledge(transcript) {
-  const lines = [];
-  if (transcript) lines.push(`🎙️ Verstanden: „${transcript}“`);
-  lines.push("✍️ Ich schreibe den Artikel …");
-  const text = lines.join("\n\n");
+async function acknowledge(request) {
+  if (!request?.trim()) return;
+  const text = `🎙️ Verstanden: „${request}“`;
   try {
     await telegram.call("send_message", { text });
   } catch (err) {
     console.error(`[source-telegram] acknowledgement not sent: ${err.message}`);
   }
-  await postMessage({ direction: "out", author: "source-telegram", text });
 }
 
 async function pitch(envelope) {
@@ -109,7 +122,8 @@ async function poll() {
     const result = await toEnvelope(msg);
     if (!result) continue;
     const id = await pitch(result.envelope);
-    // Record the user's message in the hub, tied to the pitch it became.
+    // Record the user's (tidied) message in the chat history, tied to the pitch it
+    // became. Inbound stays here — mcp-telegram never sees the transcript or the id.
     await postMessage({
       direction: "in",
       author: "user",
@@ -118,7 +132,7 @@ async function poll() {
       message_id: msg.message_id,
       meta: { pitch_id: id },
     });
-    await acknowledge(result.transcript);
+    await acknowledge(result.request);
     console.log(`[source-telegram] pitched ${id} (msg ${msg.message_id})`);
   }
 

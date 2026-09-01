@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { parse } from "yaml";
-import { loadSettings, section, secret } from "@blogagent/config";
+import { loadSettings, section, secret, isMainModule } from "@blogagent/config";
 import { makeEnvelope, formatRef } from "@blogagent/envelope";
 import { GitHub } from "@blogagent/sink-github/github.js";
 
@@ -134,7 +134,7 @@ async function poll() {
   }
 }
 
-if (process.argv[1]?.endsWith("index.js")) {
+if (isMainModule(import.meta.url)) {
   console.log(`[source-github] ${REPO}, label '${LABEL}', every ${POLL_MS / 1000}s`);
   while (true) {
     await poll().catch((err) => console.error(`[source-github] ${err.message}`));

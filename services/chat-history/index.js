@@ -15,10 +15,11 @@ import { makeStore } from "./store.js";
  *
  * Storage is one JSON line per message; nothing here parses or interprets them.
  */
-const cfg = section(loadSettings(), "chat");
+const cfg = section(loadSettings(), "chat-history");
 const PORT = cfg.num("port", 5090);
-const FILE = cfg.str("file", "./var/chat/history.jsonl");
-const { append, recent } = makeStore(FILE);
+const DIR = cfg.str("dir", "./var/chat-history");
+const MAX_CONTEXT = cfg.num("max_context", 50);
+const { append, recent } = makeStore(DIR, MAX_CONTEXT);
 
 /** SSE responses currently listening. */
 const subscribers = new Set();
@@ -87,5 +88,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => {
-  console.log(`[chat] :${PORT} → ${FILE}`);
+  console.log(`[chat-history] :${PORT} → ${DIR} (context: ${MAX_CONTEXT})`);
 });

@@ -1,0 +1,12 @@
+{
+  "name": "@blogagent/sink-telegram",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "@blogagent/config": "*",
+    "@blogagent/mcp": "*",
+    "sharp": "^0.34.0"
+  }
+}

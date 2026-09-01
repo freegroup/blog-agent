@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import http from "node:http";
-import { loadSettings, section } from "@blogagent/config";
+import { loadSettings, section, isMainModule } from "@blogagent/config";
 import { validateEnvelope } from "@blogagent/envelope";
 import { fetchWithRetry, whyFetchFailed } from "@blogagent/http";
 import { enrich } from "./context.js";
@@ -74,9 +74,11 @@ export function makeHandler(out) {
 
 // Only stand up the server when run as a process — importing this module (tests)
 // must not read settings.yaml or bind a port.
-if (process.argv[1]?.endsWith("index.js")) {
+if (isMainModule(import.meta.url)) {
   const cfg = section(loadSettings(), "research");
-  const PORT = cfg.num("port", 5085);
+  // Required, no default — a misconfigured port must fail loudly, not silently
+  // bind somewhere unexpected.
+  const PORT = cfg.num("port");
   // Required — a research with nowhere to deliver is a dead end, not a default.
   const OUT = cfg.str("out");
 

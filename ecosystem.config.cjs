@@ -29,8 +29,8 @@ module.exports = {
   apps: [
     {
       // The conversation record + live broadcaster (SSE). Producers POST into it.
-      name: "chat",
-      script: "services/chat/index.js",
+      name: "chat-history",
+      script: "services/chat-history/index.js",
       ...shared,
     },
     {
@@ -56,6 +56,33 @@ module.exports = {
       // Reports whatever has permanently failed. Without it a failure is silent.
       name: "sink-deadletter",
       script: "services/sink-deadletter/index.js",
+      ...shared,
+    },
+    {
+      // Delivers a finished article as a Telegram chat message plus its images.
+      // Reuses mcp-telegram for the token, so needs the Telegram secrets.
+      name: "sink-telegram",
+      script: "services/sink-telegram/index.js",
+      ...shared,
+    },
+    {
+      // Publishes a finished article to Instagram as a photo post. Uploads images to
+      // the `instagram-assets` branch of the GitHub repo (public URL needed by Instagram),
+      // then uses the Meta Graph API. Holds INSTAGRAM_APP_ID/APP_SECRET and GITHUB_TOKEN.
+      // Single fork process — it writes .env, so no second instance should race it.
+      name: "sink-instagram",
+      script: "services/sink-instagram/index.js",
+      exec_mode: "fork",
+      ...shared,
+    },
+    {
+      // Publishes a finished article to Pinterest as a Pin. Holds its own Pinterest
+      // app credentials (PINTEREST_APP_ID/APP_SECRET) and manages the OAuth refresh
+      // token in .env itself. Single fork process — it writes .env, so no second
+      // instance should race it.
+      name: "sink-pinterest",
+      script: "services/sink-pinterest/index.js",
+      exec_mode: "fork",
       ...shared,
     },
     {

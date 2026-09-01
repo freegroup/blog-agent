@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { parse } from "yaml";
 
 /**
  * Loads all briefings from the folder. All are active; each is a channel.
@@ -14,7 +15,7 @@ import path from "node:path";
  * Tone and form are set by the channel, so its target URLs live in the same file
  * as the voice.
  *
- * @typedef {{name:string, targetSink:string, loggingSink:string|null, deadletterSink:string|null, prompt:string, file:string}} Briefing
+ * @typedef {{name:string, when:string|null, targetSink:string, loggingSink:string|null, deadletterSink:string|null, prompt:string, file:string}} Briefing
  */
 export function loadBriefings(dir) {
   const briefings = [];
@@ -29,6 +30,10 @@ export function loadBriefings(dir) {
 
     briefings.push({
       name: meta.name,
+      // The channel's own responsibility rule, in the first person, phrased against
+      // the user's TEXT (not the destination): dispatch reads it to decide whether
+      // this channel applies to a pitch. Optional for now — dispatch is not built yet.
+      when: meta.when ?? null,
       targetSink: meta["target-sink"],
       loggingSink: meta["logging-sink"] ?? null,
       deadletterSink: meta["deadletter-sink"] ?? null,
@@ -41,16 +46,10 @@ export function loadBriefings(dir) {
   return briefings;
 }
 
-/** Minimal YAML: only `key: value` at the top level — that is all the frontmatter needs. */
+/** Frontmatter is real YAML, so a value can be a multiline block scalar (`when: |`). */
 function splitFrontmatter(text) {
   const match = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) return { meta: {}, body: text };
-  const meta = Object.fromEntries(
-    match[1].split("\n").flatMap((line) => {
-      const eq = line.indexOf(":");
-      if (eq === -1) return [];
-      return [[line.slice(0, eq).trim(), line.slice(eq + 1).trim()]];
-    }),
-  );
+  const meta = parse(match[1]) ?? {};
   return { meta, body: match[2] };
 }

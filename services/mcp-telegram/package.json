@@ -6,6 +6,7 @@
   "main": "index.js",
   "bin": { "mcp-telegram": "index.js" },
   "dependencies": {
+    "@blogagent/chat": "*",
     "@blogagent/config": "*",
     "@blogagent/http": "*",
     "@modelcontextprotocol/sdk": "^1.20.0",

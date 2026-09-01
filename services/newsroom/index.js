@@ -2,18 +2,22 @@
 import http from "node:http";
 import { loadSettings, section } from "@blogagent/config";
 import { validateEnvelope } from "@blogagent/envelope";
-import { connectMany } from "@blogagent/mcp";
+import { connectMany, connectOne } from "@blogagent/mcp";
 import { loadBriefings } from "./briefings.js";
 import { deliver } from "./deliver.js";
 import { resizeToWebp } from "./media.js";
 import { Queue } from "./queue.js";
+import { chooseChannels } from "./dispatch.js";
 import { buildPipeline, runPipeline, persistable, rehydrate } from "./pipeline/index.js";
 
 /**
  * The newsroom: accepts pitches, runs them through the pipeline, submits to the sink.
  *
- * It knows neither Telegram nor GitHub and never sends itself — it only posts
- * to sinks. Even a permanently failed job goes to a sink: the dead-letter sink.
+ * It knows neither GitHub nor any blog platform — it only posts finished articles
+ * to sinks. The one exception is the dispatcher: when a pitch arrives it decides
+ * which briefings it is for and tells the user directly over Telegram (the single
+ * user-facing channel), because that decision is the newsroom's to explain. Even a
+ * permanently failed job goes to a sink: the dead-letter sink.
  *
  * What an article is made of lives in `pipeline/`, and in which order in
  * `newsroom.pipeline`. This file only moves documents between the queue, the
@@ -56,6 +60,24 @@ function refreshBriefings() {
 const queue = new Queue(cfg.str("queue_dir", "./var/queue"), { maxAttempts: MAX_ATTEMPTS });
 const mcp = await connectMany(settings.mcp ?? {});
 const pipeline = await buildPipeline({ settings, mcp });
+
+// The dispatcher's model — which LLM it uses is a settings choice like any stage's,
+// built through the pipeline's memoised map so there is one place that knows profiles.
+const dispatchLlm = await pipeline.llmFor(settings.newsroom?.dispatch?.llm ?? "default");
+
+// The bridge to the user. The newsroom reports its own dispatch decision here;
+// mcp-telegram records every outbound message into the chat history, so we do not
+// mirror it ourselves.
+const telegram = await connectOne(cfg.str("mcp", "node services/mcp-telegram/index.js"), "newsroom");
+
+/** Tell the user something over Telegram. Best-effort: a send failure must never drop a pitch. */
+async function announce(text) {
+  try {
+    await telegram.call("send_message", { text });
+  } catch (err) {
+    console.error(`[newsroom] announce failed: ${err.message}`);
+  }
+}
 
 console.log(
   `[newsroom] ${briefings.length} briefing(s): ${briefings.map((b) => b.name).join(", ")} | ` +
@@ -105,6 +127,11 @@ async function handle(pitch, job) {
   // when the impulse arrived, not when a worker happened to pick it up.
   const start = {
     ...withReview,
+    // The ressort this document belongs to, persisted into blogagent.yaml (persistable
+    // keeps it as an unknown field). A later revision read back by source-github then
+    // carries it, so the dispatcher can route the revision to exactly this briefing
+    // instead of fanning back out to all of them.
+    briefing: job.briefing,
     // The shared research facts — same for every ressort of this pitch. On a fresh
     // pitch they ride in on the envelope (from the research filter); on a revision
     // they were persisted in the document and come back through rehydrate.
@@ -217,6 +244,34 @@ async function work() {
 
 // ---------------------------------------------------------------------- Server
 
+/**
+ * Which briefings is this pitch for?
+ *
+ * A revision skips the dispatcher: it already belongs to one ressort, recorded in
+ * its document (blogagent.yaml) on the first publish. We route it straight back
+ * there; a legacy document without that field falls back to all briefings (safe:
+ * a revision only touches an existing article).
+ *
+ * A fresh pitch goes through the dispatcher. If that fails we never drop the pitch
+ * — we fall back to every briefing and let the pipeline decide, exactly as before
+ * the dispatcher existed.
+ */
+async function routeChannels(envelope, all) {
+  const allNames = all.map((b) => b.name);
+
+  if (envelope.doc) {
+    const owner = envelope.doc.briefing;
+    return owner && allNames.includes(owner) ? [owner] : allNames;
+  }
+
+  try {
+    return await chooseChannels({ text: envelope.text ?? "", briefings: all, llm: dispatchLlm });
+  } catch (err) {
+    console.error(`[newsroom] dispatch failed, using all channels: ${err.message}`);
+    return allNames;
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   const reply = (status, body) => {
     res.writeHead(status, { "content-type": "application/json" });
@@ -233,8 +288,20 @@ const server = http.createServer(async (req, res) => {
       if (errors.length) return reply(400, { errors });
 
       // Re-read here so a newly added briefing file is a live channel for new pitches.
-      const pitch = queue.accept(envelope, refreshBriefings().map((b) => b.name));
+      const all = refreshBriefings();
+      const channels = await routeChannels(envelope, all);
+
+      // No channel is responsible: create nothing and tell the user so, rather than
+      // silently dropping the pitch or fanning it out to briefings it does not fit.
+      if (!channels.length) {
+        reply(202, { id: envelope.id, channels: [] });
+        announce("🤷 Dafür habe ich keinen passenden Kanal — ich schreibe nichts.");
+        return;
+      }
+
+      const pitch = queue.accept(envelope, channels);
       reply(202, { id: pitch.id });
+      announce(`✍️ Ich schreibe den Artikel für die Briefings:\n${channels.map((c) => ` - ${c}`).join("\n")}`);
       setImmediate(work);
     } catch (err) {
       reply(400, { errors: [err.message] });
@@ -270,6 +337,7 @@ setInterval(() => queue.cleanup(RETENTION_H), 3600_000).unref();
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
     await mcp.close();
+    await telegram.close();
     server.close(() => process.exit(0));
   });
 }

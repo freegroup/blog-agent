@@ -80,6 +80,10 @@ export async function buildPipeline({ settings, mcp }) {
   return {
     stages,
     contextFor: (name, briefing) => ({ ...contexts.get(name), briefing }),
+    // Exposed so callers outside the pipeline (the dispatcher) can build a
+    // provider from a configured profile without knowing about llm-profiles or
+    // duplicating a second instance — same memoised map the stages use.
+    llmFor,
     describe,
   };
 }

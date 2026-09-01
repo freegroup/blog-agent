@@ -47,6 +47,9 @@ export async function createLlm(cfg) {
       model: cfg.str("model"),
       maxTokens: cfg.num("max_tokens", 16000),
       apiKey: process.env.LLM_API_KEY ?? "not-needed",
+      // 5 attempts past the first, with fetchWithRetry's exponential backoff
+      // (1s, 2s, 4s, 8s, 16s) — the provider's 503s under load are transient.
+      retries: cfg.num("retries", 5),
     });
   }
 
@@ -60,6 +63,9 @@ export async function createLlm(cfg) {
       model: cfg.str("model", "gemini-flash-latest"),
       maxTokens: cfg.num("max_tokens", 16000),
       apiKey: process.env.GEMINI_API_KEY ?? "not-needed",
+      // Gemini is chronically overloaded (503) under load; give it 5 retries with
+      // exponential backoff (1s, 2s, 4s, 8s, 16s) before giving up.
+      retries: cfg.num("retries", 5),
     });
   }
 

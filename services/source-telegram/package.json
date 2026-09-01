@@ -7,8 +7,10 @@
   "dependencies": {
     "@blogagent/config": "*",
     "@blogagent/envelope": "*",
+    "@blogagent/llm": "*",
     "@blogagent/mcp": "*",
     "@blogagent/stt": "*",
+    "@blogagent/tidy": "*",
     "@blogagent/chat": "*"
   }
 }

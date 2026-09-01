@@ -3,10 +3,12 @@ name: camper-blog
 target-sink: http://127.0.0.1:5081/publish
 logging-sink: http://127.0.0.1:5082/publish
 deadletter-sink: http://127.0.0.1:5083/deadletter
+when: |
+  Nur wenn es thematisch um Elektrik oder um Camper-/Van-Ausbau geht
+  (z. B. Kabelquerschnitt, Absicherung, Solar, Batterie, Ladebooster,
+  Bordnetz, Verkabelung, Innenausbau). Passt das Thema nicht dazu, gilt
+  dieser Kanal nicht — er ist nicht der Standard für beliebige Themen.
 ---
-
-Du schreibst für den Blog von **camper-elektrik-planer.de** — einem kostenlosen Planer
-für die 12-V-Elektrik im Wohnmobil.
 
 ## Wer liest das
 
