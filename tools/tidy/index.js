@@ -42,3 +42,38 @@ export async function tidySentence(text, llm) {
   });
   return (reply.text ?? "").trim() || text;
 }
+
+const MERGE_SYSTEM =
+  "Du bekommst mehrere einzelne Rückfragen an einen Nutzer — jede fragt nach etwas anderem, das für " +
+  "seine Anfrage noch fehlt. Fasse sie zu EINER natürlichen, höflichen Rückfrage zusammen, die alle " +
+  "Punkte abdeckt. Ändere die inhaltliche Bedeutung nicht und erfinde nichts dazu. Übernimm jede " +
+  "konkrete Angabe (URLs, Namen, Zahlen) unverändert. Antworte ausschließlich mit der " +
+  "zusammengefassten Rückfrage — kein Kommentar, keine Anführungszeichen, keine Aufzählung.";
+
+/**
+ * Merge several clarifying questions into one natural sentence.
+ *
+ * step-dialog runs a pipeline of filters, and more than one can report something
+ * missing at the same time ("no link" + "no image"). Rather than firing several
+ * separate messages at the user, their individual questions are folded into a
+ * single polite request here. Same `.complete` contract as `tidySentence`, so any
+ * provider fits and a fake one makes it testable without a network.
+ *
+ * @param {string[]} sentences  the individual clarifying questions (already phrased)
+ * @param {{complete: Function}} llm  any LLM provider (from @blogagent/llm)
+ * @returns {Promise<string>}  the merged question. With zero or one input the
+ *   model is not called (nothing to merge); on an empty model reply the inputs are
+ *   joined verbatim so no question is ever lost. Errors propagate — the caller
+ *   decides whether to fall back.
+ */
+export async function mergeSentences(sentences, llm) {
+  const parts = (sentences ?? []).map((s) => String(s ?? "").trim()).filter(Boolean);
+  if (parts.length <= 1) return parts[0] ?? "";
+
+  const reply = await llm.complete({
+    system: MERGE_SYSTEM,
+    messages: [{ role: "user", content: [{ type: "text", text: parts.map((p) => `- ${p}`).join("\n") }] }],
+    tools: [],
+  });
+  return (reply.text ?? "").trim() || parts.join(" ");
+}

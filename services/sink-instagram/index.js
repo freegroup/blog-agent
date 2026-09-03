@@ -123,7 +123,7 @@ async function publish(payload) {
   const image = images[0];
   if (!image) return { status: 400, body: { errors: ["an Instagram post needs an image — none in this article"] } };
 
-  // The URL the research filter resolved, or the configured fallback (never empty in practice).
+  // The URL step-research resolved, or the configured fallback (never empty in practice).
   const link = meta?.context?.target_url || config.defaultLink;
   const caption = buildCaption(title, description, link);
 

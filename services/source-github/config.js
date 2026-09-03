@@ -18,9 +18,14 @@ export function buildConfig(settings, env) {
   return {
     pollMs: cfg.num("poll_seconds", 60) * 1000,
     staleMs: cfg.num("ack_stale_min", 15) * 60_000,
-    ackText: cfg.str("ack_text", "→ weitergeleitet an die Fachabteilung"),
-    // A revision skips research and posts straight to the newsroom: the facts were
-    // gathered on the first pitch and persisted in the article's blogagent.yaml.
+    ackText: cfg.str("ack_text"),
+    // Posted (once) when a login other than githubOwner comments: the return channel
+    // only acts on the owner's comments, so an outsider gets a short notice instead of
+    // silence. It is a known standard text — the poller recognizes its own notice on the
+    // next round and never answers itself (no loop). Lives in settings.yaml, not here.
+    rejectText: cfg.str("reject_text"),
+    // A revision skips step-research and posts straight to the newsroom: the facts
+    // were gathered on the first pitch and persisted in the article's blogagent.yaml.
     // Still just a configurable URL, so the routing stays in settings.
     out: cfg.str("out"),
     apiUrl: cfg.str("api_url", "https://api.github.com"),

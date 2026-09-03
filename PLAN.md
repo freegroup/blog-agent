@@ -6,7 +6,7 @@ der als GitHub-PR eingereicht wird. Wohin er geht und in welcher Stimme, weiß n
 Ziel-Blog: [camper-elektrik-planer.de](https://camper-elektrik-planer.de) als PR gegen
 `freegroup/CampingElectricCalculator`.
 
-Arbeitsdokument. Stand 31.08.2026 (an die Implementierung angeglichen).
+Arbeitsdokument. Stand 03.09.2026 (an die Implementierung angeglichen).
 
 ---
 
@@ -15,18 +15,21 @@ Arbeitsdokument. Stand 31.08.2026 (an die Implementierung angeglichen).
 **Vorwärts** · Impuls → Artikel → PR
 
 ```
-   Telegram  ─►  source-telegram  ─►  research  ─┐   (research reichert den Envelope um `context` an)
-                                                  ▼
-   PR-Komm.  ─►  source-github  ──────────────►  newsroom  ─►  sink-github  ─►  PR ─►[ Merge ]─► Blog
-              (Revision: überspringt research)    (Pipeline)       │              (Zielsystem baut/deployt)
-                                                      │            └─ auch: sink-file (Debug), sink-deadletter (Fehler)
-                                                      └─ nutzt: mcp-calc · tools/{llm, image, stt}
+   Telegram  ─►  source-telegram  ─►  step-dialog  ─►  step-research ─┐  (dialog fragt bei Unklarheit zurück; research reichert `context` an)
+                                                                       ▼
+   PR-Komm.  ─►  source-github  ─────────────────────────────────►  newsroom  ─►  sink-github  ─►  PR ─►[ Merge ]─► Blog
+              (Revision: überspringt dialog + research)                (Pipeline)     │              (Zielsystem baut/deployt)
+                                                                          │           └─ auch: sink-file (Debug), sink-deadletter (Fehler)
+                                                                          └─ nutzt: mcp-calc · tools/{llm, image, stt}
 ```
 
-Sources und Filter reden dasselbe REST (`POST /pitches` rein, `POST` an ihr `out` raus),
-darum sind sie verkettbar: `source-telegram` schickt an `research`, `research` an den `newsroom`.
-`source-github` (Revision) überspringt `research` und postet direkt in den Newsroom — die Fakten
-stehen schon im `blogagent.yaml`. Jedes `out` steht in `settings.yaml`.
+Sources und Schritte reden dasselbe REST (`POST /pitches` rein, `POST` an ihr `out` raus),
+darum sind sie verkettbar: `source-telegram` → `step-dialog` → `step-research` → `newsroom`.
+`step-dialog` ist der Empfang: er erkennt eine Anfrage, bevor teure Arbeit beginnt, und entscheidet
+per Filter-Präzedenz, ob er durchreicht, beim Nutzer rückfragt (geparkt als `awaiting-reply` in
+`var/queue`), direkt antwortet oder ein früheres Posting erneut anstößt. `source-github` (Revision)
+überspringt `step-dialog` und `step-research` und postet direkt in den Newsroom — die Fakten stehen
+schon im `blogagent.yaml`. Jedes `out` steht in `settings.yaml`.
 
 **Rückwärts** · Rückmeldung an den User
 
@@ -58,12 +61,13 @@ Support-Ebene (nicht im Bild): `mcp-telegram` hält den Telegram-Token (Gateway 
 | Prozess | Port | Rolle |
 |---|---|---|
 | `newsroom` | 5080 | Nimmt Pitches an, fährt die Pipeline, liefert an die Sinks. Hält die Queue. |
-| `research` | 5085 | Filter vor dem Newsroom: reichert den Envelope um `context` an, reicht an `out` weiter. |
+| `step-dialog` | 5088 | Empfang vor `step-research`: entscheidet per Filter-Präzedenz durchreichen / rückfragen / antworten / früheres Posting erneut anstoßen. Sendet auf Telegram (nur senden, nie pollen). |
+| `step-research` | 5085 | Schritt vor dem Newsroom: reichert den Envelope um `context` an, reicht an `out` weiter. |
 | `sink-github` | 5081 | Legt PRs an (Verzeichnis-Bundle je Artikel). Hält Repo + Token. **Validiert nicht — liefert nur aus.** |
 | `sink-file` | 5082 | Debug-Spiegel (`logging-sink`): schreibt `var/sink/<slug>/`. Keine Secrets. |
 | `sink-deadletter` | 5083 | Endgültig gescheiterte Pitches → Telegram + Datei `var/deadletter/<id>.yaml`. |
 | `chat` | 5090 | Chat-Hub: einziges Protokoll der Konversation + SSE-Broadcast. |
-| `source-telegram` | — | Long-Polling (via `mcp-telegram`), Sprach-Transkription (STT), pitcht; speist den Hub. |
+| `source-telegram` | — | Long-Polling (via `mcp-telegram`), Sprach-Transkription (STT), pitcht; bestätigt dem Sender den (geglätteten) Empfang; speist den Hub. |
 | `source-github` | — | Pollt gelabelte PRs, macht Owner-Kommentare zu Revise-Pitches. |
 | `watch-rss` | — | Pollt den Blog-RSS-Feed, meldet neue **live** Beiträge auf Telegram + Hub. |
 | `mcp-calc` | — | MCP-Kindprozess: `wire_cross_section` (Kabelquerschnitt). Fachtool. |
@@ -100,7 +104,7 @@ test/                                   test/
 
 Handler und Poll-Callback sind dasselbe Muster: Eingabe entpacken → an reine Logik delegieren;
 nur die Quelle der Eingabe (Request vs. gepolltes Item) unterscheidet sich. Beispiele:
-`research` (`handler.js` + `context.js`), `source-github` (`poll.js`), `newsroom`
+`step-research` (`handler.js` + `context.js`), `source-github` (`poll.js`), `newsroom`
 (`dispatch.js`/`queue.js`/`pipeline/`), `sink-instagram` (`instagram.js`).
 
 ---
@@ -132,7 +136,7 @@ Die einzige Form, in der ein Impuls die Redaktion erreicht. Jede Source normalis
 - `doc` / `review` (**nur bei Revision**): `doc` ist das zurückgelesene `blogagent.yaml` (die
   Wahrheit des Artikels), `review` der Kommentarverlauf. Jede Pipeline-Stufe sieht beides und
   entscheidet auf ihren eigenen Feldern, ob sie durchreicht, anpasst oder neu macht (§4).
-- `context`: die geteilten Fakten, die der `research`-Filter einmal pro Pitch anreichert
+- `context`: die geteilten Fakten, die der `step-research`-Schritt einmal pro Pitch anreichert
   (Ziel-URL & Referenzen, §8). `null`, wenn eine Source direkt in den Newsroom postet. Fließt in
   jeden Job-Doc und damit ins `blogagent.yaml`.
 - Kein `trust`-Feld (im Ur-Entwurf vorgesehen, nicht umgesetzt — siehe §9).

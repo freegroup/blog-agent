@@ -17,6 +17,7 @@ const poll = makePoll({
   gh,
   out: config.out,
   ackText: config.ackText,
+  rejectText: config.rejectText,
   ownerLogin: config.githubOwner,
   staleMs: config.staleMs,
   label: config.label,

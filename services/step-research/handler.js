@@ -3,16 +3,17 @@ import { fetchWithRetry, whyFetchFailed } from "@blogagent/http";
 import { enrich } from "./context.js";
 
 /**
- * Research — a filter in front of the newsroom, same REST shape on both ends.
+ * step-research — a transforming hop in front of the newsroom, same REST shape on
+ * both ends.
  *
  * IN  · `POST /pitches` (an envelope) — exactly what the newsroom accepts.
- * OUT · `POST` the enriched envelope to `research.out` (its next hop, required).
+ * OUT · `POST` the enriched envelope to `step-research.out` (its next hop, required).
  *
- * That symmetry is the point: filters chain. A source may pitch here, here to the
- * newsroom, or a third filter could sit between — nobody downstream needs to know.
- * Research owns no durable state; the newsroom keeps the queue. If the hop is down
- * the forward fails and the source (which retries) tries the whole thing again, so
- * backpressure lives at the head of the chain, not in a second queue here.
+ * That symmetry is the point: hops chain. A source may pitch here, here to the
+ * newsroom, or a third hop could sit between — nobody downstream needs to know.
+ * step-research owns no durable state; the newsroom keeps the queue. If the hop is
+ * down the forward fails and the source (which retries) tries the whole thing again,
+ * so backpressure lives at the head of the chain, not in a second queue here.
  *
  * All request handling lives here so it is import-testable; index.js is bootstrap
  * only (read settings, bind a port) and is never imported.
@@ -52,11 +53,11 @@ export function makeHandler(out) {
 
         // Gather the facts, then hand the enriched envelope straight on. We mirror
         // the next hop's status so the source sees the newsroom's own 202/4xx —
-        // research is transparent, not a second acceptance point.
+        // step-research is transparent, not a second acceptance point.
         const enriched = await enrich(envelope);
         const { status, body } = await deliver(out, enriched);
         console.log(
-          `[research] ${envelope.id?.slice(0, 8)} → ${out} ${status}` +
+          `[step-research] ${envelope.id?.slice(0, 8)} → ${out} ${status}` +
             (enriched.context?.target_url ? ` · target=${enriched.context.target_url}` : ""),
         );
         return reply(status, body);

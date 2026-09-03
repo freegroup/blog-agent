@@ -11,8 +11,8 @@ import { randomUUID } from "node:crypto";
  * own fields, whether to pass through, adjust, or redo. A fresh pitch leaves both
  * empty (`doc: null`, `review: []`).
  *
- * `context` is the shared facts a filter enriches the envelope with before it
- * reaches the newsroom (the `research` service: target URL, references). It rides
+ * `context` is the shared facts a hop enriches the envelope with before it
+ * reaches the newsroom (the `step-research` service: target URL, references). It rides
  * along the envelope so the chain stays composable — a source may point straight
  * at the newsroom and then `context` is simply absent (`null`).
  *

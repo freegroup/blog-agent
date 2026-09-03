@@ -114,7 +114,7 @@ source-telegram:
   mcp: node services/mcp-telegram/index.js
   # LLM-Profil zum Glätten der Anfrage (Tippfehler/Satzbau).
   llm: quick
-  out: http://127.0.0.1:5085/pitches
+  out: http://127.0.0.1:5088/pitches
 
 source-github:
   api_url: https://api.github.com
@@ -122,12 +122,28 @@ source-github:
   poll_seconds: 60
   ack_stale_min: 15
   ack_text: "→ weitergeleitet an die Fachabteilung"
-  # Revisionen überspringen die Research-Stufe — Fakten stehen bereits in blogagent.yaml.
+  # Antwort an Fremd-Kommentatoren (Login ≠ GITHUB_OWNER): der Kommentar wird ignoriert.
+  # Bekannter Standardtext — der Poller erkennt die eigene Notiz und antwortet sich nicht selbst.
+  reject_text: "→ Kommentar ignoriert – Revisionen löst nur der Maintainer aus. 😕"
+  # Revisionen überspringen die step-research-Stufe — Fakten stehen bereits in blogagent.yaml.
   out: http://127.0.0.1:5080/pitches
 
-# Research-Filter vor dem Newsroom: reichert Pitches mit `context` an (target_url aus Text oder
-# chat-history) und leitet weiter. Gleiche REST-Schnittstelle wie der Newsroom — Filter sind chainbar.
-research:
+# step-dialog: der Empfang vor step-research. Läuft eine Liste kleiner Filter über jede Anfrage
+# und entscheidet per Präzedenz: durchreichen, beim Nutzer rückfragen (geparkt in var/queue als
+# status: awaiting-reply), direkt antworten, oder ein früheres Posting erneut posten. Sendet dafür
+# über Telegram (nur senden, nie pollen — sonst 409). v1: zwei Referenz-Filter aufs „letzte Posting".
+step-dialog:
+  port: 5088
+  out: http://127.0.0.1:5085/pitches
+  queue_dir: ./var/queue
+  mcp: node services/mcp-telegram/index.js
+  # LLM-Profil, mit dem die Filter urteilen (Intent erkennen, Ja/Nein lesen, Sätze mergen).
+  llm: quick
+
+# step-research: ein transformierender Schritt vor dem Newsroom — reichert Pitches mit `context` an
+# (target_url aus Text oder chat-history) und leitet weiter. Gleiche REST-Schnittstelle wie der
+# Newsroom — Schritte sind chainbar.
+step-research:
   port: 5085
   out: http://127.0.0.1:5080/pitches
 

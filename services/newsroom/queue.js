@@ -86,6 +86,10 @@ export class Queue {
     const ids = [];
     for (const file of readdirSync(this.dir).filter((f) => f.endsWith(SUFFIX))) {
       const pitch = this.read(path.basename(file, SUFFIX));
+      // An open step-dialog clarification lives in the same directory but is not
+      // ours: it has no jobs yet, only a status. Skip it explicitly (the jobs
+      // guard below would catch it too, but the status is the contract).
+      if (pitch?.status === "awaiting-reply") continue;
       // Anything else that ends in .yaml must not take startup down with it —
       // restore() runs inside server.listen, so a throw here is a restart loop.
       if (!Array.isArray(pitch?.jobs)) continue;
@@ -196,6 +200,25 @@ export class Queue {
     if (i !== -1) this.waiting.splice(i, 1);
   }
 
+  /**
+   * Mark a fully published pitch as published instead of dropping it.
+   *
+   * The PR(s) are the record of truth, but the queue file — envelope, media and the
+   * finished doc(s) — stays as the lookup source for later references ("also put
+   * the last posting on the blog"). This only flips the status and rewrites;
+   * cleanup() keeps a published pitch until the retention window expires, so a
+   * status poll (which sets `fetched`) can no longer drop it early.
+   */
+  publish(id) {
+    const pitch = this.read(id);
+    if (!pitch) {
+      this.vanished(id, "publish");
+      return;
+    }
+    pitch.status = "published";
+    this.write(pitch);
+  }
+
   get(id) {
     const pitch = this.read(id);
     if (!pitch) return null;
@@ -209,6 +232,9 @@ export class Queue {
   /**
    * Cleans up: fetched completed pitches, and everything finished past the retention window.
    * `failed` is kept until fetched — otherwise the only signal that something broke disappears.
+   * `published` is kept until the retention window expires regardless of fetching — it is the
+   * lookup source for references ("the last posting"). An open `awaiting-reply` clarification
+   * is not ours and is left untouched.
    */
   cleanup(retentionHours) {
     const cutoff = Date.now() - retentionHours * 3600_000;
@@ -217,11 +243,17 @@ export class Queue {
     for (const file of readdirSync(this.dir).filter((f) => f.endsWith(SUFFIX))) {
       const fullPath = path.join(this.dir, file);
       const pitch = this.read(path.basename(file, SUFFIX));
-      if (!pitch || !this.isComplete(pitch)) continue;
+      if (!pitch) continue;
+      if (pitch.status === "awaiting-reply") continue; // a step-dialog clarification, not ours
+      if (!this.isComplete(pitch)) continue;
 
       const expired = statSync(fullPath).mtimeMs < cutoff;
       const allSucceeded = pitch.jobs.every((j) => j.state === "done");
-      if ((pitch.fetched && allSucceeded) || expired) {
+      // The fetched fast-path drops a done pitch as soon as a status poll has read
+      // it — but NOT a published one: that stays until it expires so references can
+      // still find it.
+      const fetchedDone = pitch.fetched && allSucceeded && pitch.status !== "published";
+      if (fetchedDone || expired) {
         unlinkSync(fullPath);
         removed++;
       }

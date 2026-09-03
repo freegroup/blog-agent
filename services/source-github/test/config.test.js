@@ -10,6 +10,8 @@ function fakeSettings(overrides = {}) {
       out: "http://127.0.0.1:5080/pitches",
       poll_seconds: 30,
       ack_stale_min: 10,
+      ack_text: "→ ACK-TEXT",
+      reject_text: "→ REJECT-TEXT",
       ...overrides,
     },
     "sink-github": { label: "blogagent" },
@@ -27,6 +29,8 @@ test("buildConfig turns settings + env into static vars", () => {
   assert.equal(c.staleMs, 10 * 60_000, "ack_stale_min → ms");
   assert.equal(c.githubToken, "tok");
   assert.equal(c.githubOwner, "freegroup", "the comment-author login we act on");
+  assert.equal(c.ackText, "→ ACK-TEXT", "read from settings.yaml, never hard-coded");
+  assert.equal(c.rejectText, "→ REJECT-TEXT", "read from settings.yaml, never hard-coded");
 });
 
 test("buildConfig applies defaults for optional keys", () => {
@@ -34,7 +38,6 @@ test("buildConfig applies defaults for optional keys", () => {
   assert.equal(c.pollMs, 60_000);
   assert.equal(c.staleMs, 15 * 60_000);
   assert.equal(c.apiUrl, "https://api.github.com");
-  assert.equal(c.ackText, "→ weitergeleitet an die Fachabteilung");
 });
 
 test("buildConfig never throws on missing secrets — importing this module for a test is safe", () => {

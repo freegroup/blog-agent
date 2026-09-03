@@ -19,23 +19,43 @@ import { makeEnvelope, formatRef, forwardEnvelope } from "@blogagent/envelope";
  * Decides what to do for a PR.
  * The cursor is not "which comment" but "everything newer than my last ack" —
  * so two rapid comments are forwarded together rather than the second being lost.
+ *
+ * Our own notices (ack + reject) are posted by the token account, which is the same
+ * login as `owner`. They are recognized by their text prefix and excluded from both
+ * the owner-review set and the foreign set, so the loop never feeds on itself.
+ *
+ * Precedence: a pending owner review is handed off first; only when there is no owner
+ * work do we answer an outsider. Foreign comments are deduped against the last reject
+ * notice, so each outsider comment is answered exactly once.
  */
-export function decide({ comments, commits, now, ackText, owner, staleMs }) {
+export function decide({ comments, commits, now, ackText, rejectText, owner, staleMs }) {
+  const isNotice = (c) => c.body?.startsWith(ackText) || (rejectText && c.body?.startsWith(rejectText));
   const lastAck = [...comments].reverse().find((c) => c.body?.startsWith(ackText));
+  const lastReject = rejectText ? [...comments].reverse().find((c) => c.body?.startsWith(rejectText)) : null;
   const lastComment = comments.at(-1);
   if (!lastComment) return { action: "nothing" };
 
+  // 1. Owner reviews since our last ack (never our own notices) → hand off.
+  const ackSince = lastAck ? Date.parse(lastAck.created_at) : 0;
+  const newComments = comments.filter(
+    (c) => Date.parse(c.created_at) > ackSince && c.user?.login === owner && !isNotice(c),
+  );
+  if (newComments.length) return { action: "handoff", comments: newComments };
+
+  // 2. No owner work pending: tell any outsider, once, that their comment is ignored.
+  if (rejectText) {
+    const rejectSince = lastReject ? Date.parse(lastReject.created_at) : 0;
+    const foreign = comments.filter((c) => Date.parse(c.created_at) > rejectSince && c.user?.login !== owner);
+    if (foreign.length) return { action: "reject", comments: foreign };
+  }
+
+  // 3. Handed off already. Only pick up again if the newsroom appears to have abandoned it.
   if (lastComment.body?.startsWith(ackText)) {
-    // Handed off. Only pick up again if the newsroom appears to have abandoned it.
     const age = now - Date.parse(lastAck.created_at);
     const commitAfter = commits.some((c) => Date.parse(c.commit.author.date) > Date.parse(lastAck.created_at));
     if (age > staleMs && !commitAfter) return { action: "retry", since: lastAck.created_at };
-    return { action: "nothing" };
   }
-
-  const since = lastAck ? Date.parse(lastAck.created_at) : 0;
-  const newComments = comments.filter((c) => Date.parse(c.created_at) > since && c.user?.login === owner);
-  return newComments.length ? { action: "handoff", comments: newComments } : { action: "nothing" };
+  return { action: "nothing" };
 }
 
 /**
@@ -43,7 +63,7 @@ export function decide({ comments, commits, now, ackText, owner, staleMs }) {
  * `out` is the newsroom's pitch URL; the rest are the configured values decide()
  * needs.
  */
-export function makePoll({ gh, out, ackText, ownerLogin, staleMs, label, owner, name }) {
+export function makePoll({ gh, out, ackText, rejectText, ownerLogin, staleMs, label, owner, name }) {
   /**
    * Reads the published article back from the PR branch: `blogagent.yaml` — the
    * document's own truth (slug, plot, image_names, …) — and its images. No slug is
@@ -70,8 +90,17 @@ export function makePoll({ gh, out, ackText, ownerLogin, staleMs, label, owner, 
   async function checkPull(pull) {
     const [comments, commits] = await Promise.all([gh.listComments(pull.number), gh.listCommits(pull.number)]);
 
-    const decision = decide({ comments, commits, now: Date.now(), ackText, owner: ownerLogin, staleMs });
+    const decision = decide({ comments, commits, now: Date.now(), ackText, rejectText, owner: ownerLogin, staleMs });
     if (decision.action === "nothing") return;
+
+    // An outsider commented and there is no owner work pending: reply once that the
+    // comment is ignored, forward nothing. The notice is a known standard text, so the
+    // next poll recognizes it and does not answer its own reply (no loop).
+    if (decision.action === "reject") {
+      await gh.addComment(pull.number, rejectText);
+      console.log(`[source-github] PR #${pull.number} reject (${decision.comments.length} foreign comment(s))`);
+      return;
+    }
 
     const text =
       decision.action === "retry"

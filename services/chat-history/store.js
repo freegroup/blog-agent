@@ -9,7 +9,7 @@ import path from "node:path";
  *   2. {dir}/current.jsonl      — a rolling window of the last `maxContext` entries,
  *                                  rewritten in full on every append.
  *
- * current.jsonl is the slice that consumers (research, etc.) use as context. Its
+ * current.jsonl is the slice that consumers (step-research, etc.) use as context. Its
  * size is bounded so a long-running instance never inflates the context window.
  * The in-memory buffer mirrors it, so `recent()` never reads from disk at call time.
  */

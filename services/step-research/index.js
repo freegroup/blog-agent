@@ -10,7 +10,7 @@ import { makeHandler } from "./handler.js";
  */
 const server = http.createServer(makeHandler(config.out));
 // Localhost only, like every other hop — the chain never leaves the machine.
-server.listen(config.port, "127.0.0.1", () => console.log(`[research] :${config.port} → ${config.out}`));
+server.listen(config.port, "127.0.0.1", () => console.log(`[step-research] :${config.port} → ${config.out}`));
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => server.close(() => process.exit(0)));

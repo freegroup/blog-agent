@@ -91,9 +91,9 @@ async function handle(pitch, job) {
     images.push({ name: `foto-${i + 1}.webp`, data: webp.toString("base64") });
   }
 
-  // Research runs once per pitch, upstream — a filter service enriches the
-  // envelope with `context` (shared facts, same for every ressort) before it ever
-  // reaches here. A source that skips research simply leaves it null.
+  // step-research runs once per pitch, upstream — that hop enriches the envelope
+  // with `context` (shared facts, same for every ressort) before it ever reaches
+  // here. A source that skips step-research simply leaves it null.
 
   // The document lives in the queue and grows stage by stage. If the process
   // died mid-pipeline, `job.doc` still holds how far it got — rehydrate it with
@@ -122,8 +122,8 @@ async function handle(pitch, job) {
     // carries it, so the dispatcher can route the revision to exactly this briefing
     // instead of fanning back out to all of them.
     briefing: job.briefing,
-    // The shared research facts — same for every ressort of this pitch. On a fresh
-    // pitch they ride in on the envelope (from the research filter); on a revision
+    // The shared context facts — same for every ressort of this pitch. On a fresh
+    // pitch they ride in on the envelope (from step-research); on a revision
     // they were persisted in the document and come back through rehydrate.
     context: pitch.envelope.context ?? withReview.context ?? null,
     created: withReview.created ?? pitch.envelope.received_at ?? new Date().toISOString(),
@@ -202,12 +202,15 @@ async function work() {
         queue.done(pitch.id, job.briefing, { ref: publication_ref, url });
         console.log(`[newsroom] ${label} → ${url}`);
 
-        // Fully published (every channel done)? Then the PR(s) are the record of
-        // truth — drop the queue file instead of letting it linger until cleanup.
+        // Fully published (every channel done)? The PR(s) are the record of
+        // truth, but we KEEP the queue file — envelope, media and the finished
+        // doc(s) — as the lookup source for later references ("also put the last
+        // posting on the blog"). Mark it published; cleanup() drops it when the
+        // retention window expires.
         const current = queue.read(pitch.id);
         if (queue.isComplete(current) && current.jobs.every((j) => j.state === "done")) {
-          queue.remove(pitch.id);
-          console.log(`[newsroom] ${pitch.id.slice(0, 8)} published — removed from queue`);
+          queue.publish(pitch.id);
+          console.log(`[newsroom] ${pitch.id.slice(0, 8)} published — kept for reference`);
         }
       } catch (err) {
         const attempt = (job.attempts ?? 0) + 1;

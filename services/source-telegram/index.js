@@ -16,8 +16,12 @@ import { config } from "./config.js";
  *
  * The request is tidied first (typos and clumsy sentence structure, nothing more):
  * that cleaned form is what the envelope carries downstream AND what is mirrored
- * back into the chat, so the sender can proofread what actually arrived. The final
- * result — the PR link — still comes later from the sink, not here.
+ * back into the chat as a receipt, so the sender can proofread what actually arrived.
+ * That receipt lives here on purpose: this process knows the chat the message came
+ * from (msg.chat_id) and is the one point where a dictated or thumb-typed request can
+ * be caught. What follows — the clarifying question from step-dialog, the "✍️ Ich
+ * schreibe …" from the newsroom, the PR link from the sink — comes later, each from
+ * the hop that knows it.
  */
 const stt = await createStt(config.stt);
 const llm = await createLlm(config.llm);
@@ -52,8 +56,8 @@ async function toEnvelope(msg) {
   if (!text.trim() && !media.length) return null;
 
   // Smooth typos and clumsy phrasing before anything else sees the text. This
-  // cleaned form becomes the envelope AND the receipt — never the raw input. A
-  // tidy failure must not drop the message, so we keep the raw text then.
+  // cleaned form becomes the envelope carried downstream. A tidy failure must not
+  // drop the message, so we keep the raw text then.
   let request = text;
   if (text.trim()) {
     try {
@@ -63,28 +67,25 @@ async function toEnvelope(msg) {
     }
   }
 
-  const envelope = makeEnvelope({
+  return makeEnvelope({
     source: "telegram",
     source_ref: `chat:${msg.chat_id}/msg:${msg.message_id}`,
     text: request,
     media,
   });
-  return { envelope, request };
 }
 
 /**
  * Mirror the tidied request back into the chat so the sender can proofread what
  * actually arrived — the one point where a dictated or thumb-typed message can be
- * caught if it came out wrong. What follows ("Ich schreibe … für die Briefings")
- * comes later from the newsroom, which knows the channels; this only confirms the
- * request. Never throws: a failed courtesy must not drop the message from the poll
- * loop. No chat-history write here — mcp-telegram records every outbound message.
+ * caught if it came out wrong. Never throws: a failed courtesy must not drop the
+ * message from the poll loop. No chat-history write here — mcp-telegram records
+ * every outbound message.
  */
-async function acknowledge(request) {
-  if (!request?.trim()) return;
-  const text = `🎙️ Verstanden: „${request}“`;
+async function acknowledge(text) {
+  if (!text?.trim()) return;
   try {
-    await telegram.call("send_message", { text });
+    await telegram.call("send_message", { text: `🎙️ Verstanden: „${text}“` });
   } catch (err) {
     console.error(`[source-telegram] acknowledgement not sent: ${err.message}`);
   }
@@ -99,20 +100,20 @@ async function poll() {
   });
 
   for (const msg of messages) {
-    const result = await toEnvelope(msg);
-    if (!result) continue;
-    const id = await forwardEnvelope(result.envelope, config.out);
+    const envelope = await toEnvelope(msg);
+    if (!envelope) continue;
+    const id = await forwardEnvelope(envelope, config.out);
     // Record the user's (tidied) message in the chat history, tied to the pitch it
     // became. Inbound stays here — mcp-telegram never sees the transcript or the id.
     await postMessage({
       direction: "in",
       author: "user",
-      text: result.envelope.text,
+      text: envelope.text,
       chat_id: msg.chat_id,
       message_id: msg.message_id,
       meta: { pitch_id: id },
     });
-    await acknowledge(result.request);
+    await acknowledge(envelope.text);
     console.log(`[source-telegram] pitched ${id} (msg ${msg.message_id})`);
   }
 

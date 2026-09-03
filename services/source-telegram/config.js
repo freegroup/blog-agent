@@ -14,9 +14,9 @@ export function buildConfig(settings) {
   const cfg = section(settings, "source-telegram");
   return {
     pollMs: cfg.num("poll_seconds", 5) * 1000,
-    // Where a fresh pitch goes next. Required, and normally the research filter
+    // Where a fresh pitch goes next. Required, and normally step-research
     // (which enriches and forwards to the newsroom) — but it is just a URL, so this
-    // source can also point straight at the newsroom, or at any other filter.
+    // source can also point straight at the newsroom, or at any other hop.
     out: cfg.str("out"),
     // The mcp-telegram command: this source polls Telegram only through that one
     // token-holding process. Just a spawn command, so it stays in settings.

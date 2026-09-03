@@ -40,10 +40,20 @@ module.exports = {
       ...shared,
     },
     {
-      // The research filter: enriches each fresh pitch with `context`, forwards to
-      // the newsroom (its `out`). Started after the newsroom. No secrets.
-      name: "research",
-      script: "services/research/index.js",
+      // step-dialog: the reception desk in front of step-research. Decides per
+      // request whether to forward, ask the user something first, answer a read-only
+      // request, or repost a past posting. SENDS on Telegram (reuses mcp-telegram for
+      // the token), so it needs the Telegram secrets — but it never polls.
+      name: "step-dialog",
+      script: "services/step-dialog/index.js",
+      ...shared,
+    },
+    {
+      // step-research: a transforming hop that enriches each fresh pitch with
+      // `context`, forwards to the newsroom (its `out`). Started after the newsroom.
+      // No secrets.
+      name: "step-research",
+      script: "services/step-research/index.js",
       ...shared,
     },
     {

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { tidySentence } from "../index.js";
+import { tidySentence, mergeSentences } from "../index.js";
 
 /** Fake LLM: returns the queued reply and records the request it saw. */
 function fakeLlm(reply) {
@@ -53,4 +53,33 @@ test("falls back when the reply has no text field", async () => {
 test("propagates a provider error for the caller to handle", async () => {
   const llm = fakeLlm(new Error("LLM down"));
   await assert.rejects(() => tidySentence("original", llm), /LLM down/);
+});
+
+test("mergeSentences folds several questions into the model's one sentence", async () => {
+  const llm = fakeLlm({ text: "Schick mir bitte das Bild und den Link für die Story." });
+  const out = await mergeSentences(["Schick mir das Bild.", "Hast du den Link vergessen?"], llm);
+  assert.equal(out, "Schick mir bitte das Bild und den Link für die Story.");
+  // Both questions are handed to the model as the single user turn.
+  assert.match(llm.seen[0].messages[0].content[0].text, /Bild/);
+  assert.match(llm.seen[0].messages[0].content[0].text, /Link/);
+});
+
+test("mergeSentences returns the single question unchanged and never calls the model", async () => {
+  const llm = fakeLlm(new Error("must not be called"));
+  const out = await mergeSentences(["Hast du den Link vergessen?"], llm);
+  assert.equal(out, "Hast du den Link vergessen?");
+  assert.equal(llm.seen.length, 0);
+});
+
+test("mergeSentences ignores blank entries before deciding whether to merge", async () => {
+  const llm = fakeLlm(new Error("must not be called"));
+  const out = await mergeSentences(["", "  ", "Nur diese zählt."], llm);
+  assert.equal(out, "Nur diese zählt.");
+  assert.equal(llm.seen.length, 0);
+});
+
+test("mergeSentences falls back to joining the inputs when the model returns nothing", async () => {
+  const llm = fakeLlm({ text: "   " });
+  const out = await mergeSentences(["Erste Frage.", "Zweite Frage."], llm);
+  assert.equal(out, "Erste Frage. Zweite Frage.");
 });

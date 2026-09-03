@@ -10,7 +10,7 @@ import { upsertEnvVar } from "./token-store.js";
  *
  * Same `POST /publish` contract as the other sinks — a briefing names it as a sink
  * and the newsroom posts the finished article here. The Pin links back to the URL
- * the research filter extracted (payload.meta.context.target_url), carries the
+ * step-research extracted (payload.meta.context.target_url), carries the
  * article's title/description, and shows its image (the pipeline's WebP converted
  * to JPEG, sent inline as base64 — Pinterest needs an image for every Pin).
  *
@@ -94,7 +94,7 @@ async function publish(payload) {
     return { status: 201, body: { publication_ref: "pinterest:dry-run", dry_run: true } };
   }
 
-  // Link back to the URL the research filter resolved (may be absent → no link).
+  // Link back to the URL step-research resolved (may be absent → no link).
   const imageBase64 = await toJpegBase64(image.data);
   const token = await validAccessToken();
 

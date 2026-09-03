@@ -98,6 +98,67 @@ test("remove() on a missing file does not throw", () => {
   cleanup();
 });
 
+test("publish() keeps the file and marks it published", () => {
+  const { dir, queue, cleanup } = fresh();
+  queue.accept(ENVELOPE, ["blog"]);
+  queue.done("01J-test", "blog", { ref: "github:a/b#1", url: "u" });
+
+  queue.publish("01J-test");
+  assert.ok(existsSync(path.join(dir, "01J-test.yaml")), "the file is kept as the lookup source");
+  assert.equal(queue.read("01J-test").status, "published");
+  cleanup();
+});
+
+test("a published pitch survives a status fetch — it is the lookup source for references", () => {
+  const { dir, queue, cleanup } = fresh();
+  queue.accept(ENVELOPE, ["blog"]);
+  queue.done("01J-test", "blog", { ref: "r", url: "u" });
+  queue.publish("01J-test");
+
+  queue.get("01J-test"); // a status poll sets `fetched`
+  assert.equal(queue.cleanup(24), 0, "the fetched fast-path does not drop a published pitch");
+  assert.ok(existsSync(path.join(dir, "01J-test.yaml")));
+  cleanup();
+});
+
+test("a published pitch is removed once the retention window expires", () => {
+  const { dir, queue, cleanup } = fresh();
+  queue.accept(ENVELOPE, ["blog"]);
+  queue.done("01J-test", "blog", { ref: "r", url: "u" });
+  queue.publish("01J-test");
+
+  const old = new Date(Date.now() - 48 * 3600_000);
+  utimesSync(path.join(dir, "01J-test.yaml"), old, old);
+  assert.equal(queue.cleanup(24), 1, "kept only until retention expiry");
+  cleanup();
+});
+
+test("publish() on a missing file does not throw", () => {
+  const { queue, cleanup } = fresh();
+  assert.doesNotThrow(() => queue.publish("never-existed"));
+  cleanup();
+});
+
+test("an open awaiting-reply clarification is neither restored nor cleaned up", () => {
+  const { dir, queue, cleanup } = fresh();
+  // A step-dialog clarification: same directory, no jobs, status is the contract.
+  writeFileSync(
+    path.join(dir, "01J-clarify.yaml"),
+    "id: 01J-clarify\nstatus: awaiting-reply\nquestion: Hast du den Link?\n",
+  );
+  queue.accept(ENVELOPE, ["blog"]); // a real pitch alongside it
+
+  const restored = new Queue(dir);
+  assert.equal(restored.restore(), 1, "only the real pitch is picked up");
+  assert.equal(restored.next().job.briefing, "blog");
+
+  const old = new Date(Date.now() - 48 * 3600_000);
+  utimesSync(path.join(dir, "01J-clarify.yaml"), old, old);
+  assert.equal(restored.cleanup(24), 0, "the clarification is not ours to delete");
+  assert.ok(existsSync(path.join(dir, "01J-clarify.yaml")));
+  cleanup();
+});
+
 test("failed pitches are kept until someone fetches them", () => {
   const { queue, cleanup } = fresh();
   queue.accept(ENVELOPE, ["blog"]);

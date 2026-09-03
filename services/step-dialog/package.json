@@ -1,5 +1,5 @@
 {
-  "name": "@blogagent/research",
+  "name": "@blogagent/step-dialog",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,10 @@
   "dependencies": {
     "@blogagent/config": "*",
     "@blogagent/envelope": "*",
-    "@blogagent/chat": "*",
-    "@blogagent/http": "*"
+    "@blogagent/http": "*",
+    "@blogagent/llm": "*",
+    "@blogagent/mcp": "*",
+    "@blogagent/tidy": "*",
+    "yaml": "*"
   }
 }
