@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { deliver } from "../index.js";
+import { deliver } from "../handler.js";
 
 /** A fake fetch that records the request and returns a canned response. */
 function fakeFetch(status, body) {

@@ -1,5 +1,4 @@
 import { readFileSync, existsSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import { parse } from "yaml";
 
 // Node does not auto-load .env. Do it once on module load so every service
@@ -78,24 +77,5 @@ export function secret(name) {
   const value = process.env[name];
   if (!value) throw new Error(`Environment variable ${name} missing — see .env.example`);
   return value;
-}
-
-/**
- * True when this module is the program entry point (started as a process), false
- * when it was imported (e.g. by a test). Services guard their server startup with
- * it so importing the module does not read settings.yaml or bind a port.
- *
- * pm2's fork mode runs the script through a wrapper, so `process.argv[1]` is
- * pm2's ProcessContainerFork.js, NOT our file — a naive `argv[1].endsWith(...)`
- * check is always false under pm2 and the server silently never starts. pm2 does
- * set `pm_exec_path` to the real script, so we prefer that and fall back to
- * `argv[1]` for a plain `node index.js`.
- *
- * @param {string} importMetaUrl - pass `import.meta.url` from the calling module.
- */
-export function isMainModule(importMetaUrl) {
-  const entry = process.env.pm_exec_path ?? process.argv[1];
-  if (!entry) return false;
-  return importMetaUrl === pathToFileURL(entry).href;
 }
 

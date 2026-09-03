@@ -81,7 +81,30 @@ tools/    llm · image · stt · tts        (Adapter zu externen APIs, provider-
 services/ (siehe Tabelle oben)
 ```
 
+### Dienst-Aufbau (Konvention)
+
+Ein Grundsatz löst die „läuft-als-Prozess-oder-importiert?"-Frage: **`index.js` wird von
+niemandem importiert und ist reines Bootstrap** — Config lesen, Server/Loop starten, Signale.
+Alles Testbare liegt daneben, in eigenen Modulen. Kein Run-as-main-Guard nötig.
+
+Zwei Ausprägungen derselben Regel:
+
+```
+REST-Dienst (empfängt Calls)          Poller (holt sich Arbeit)
+─────────────────────────────         ─────────────────────────────
+index.js    Bootstrap, nie importiert  index.js    Bootstrap, nie importiert
+handler.js  parst Request, delegiert   poll.js     "verarbeite ein Item" + reine Logik
+<logik>.js  reine Fachlogik/Utils       <logik>.js  reine Helfer
+test/                                   test/
+```
+
+Handler und Poll-Callback sind dasselbe Muster: Eingabe entpacken → an reine Logik delegieren;
+nur die Quelle der Eingabe (Request vs. gepolltes Item) unterscheidet sich. Beispiele:
+`research` (`handler.js` + `context.js`), `source-github` (`poll.js`), `newsroom`
+(`dispatch.js`/`queue.js`/`pipeline/`), `sink-instagram` (`instagram.js`).
+
 ---
+
 
 ## 2. Envelope — der Eingang
 
