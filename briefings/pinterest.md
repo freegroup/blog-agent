@@ -1,6 +1,7 @@
 ---
 name: pinterest
 target-sink: http://127.0.0.1:5086/publish
+logging-sink: http://127.0.0.1:5082/publish
 deadletter-sink: http://127.0.0.1:5083/deadletter
 when: |
   Nur wenn der User ausdrücklich einen Pinterest-Pin will
@@ -32,8 +33,18 @@ erklären, warum dieser Pin es wert ist, gespeichert zu werden.
 
 ## Ton
 
-Inspirierend, aber sachlich. Nicht reißerisch. Wie ein guter Tipp von jemandem,
-der es selbst gemacht hat.
+Inspirierend, aber sachlich. Wie ein guter Tipp von jemandem, der es selbst gemacht
+hat — nicht wie eine Anzeige.
+
+**Nicht reißerisch.** Keine Hype-Wörter („Gamechanger", „unverzichtbar", „der absolute
+…", „Must-have", „Geheimtipp"), keine Imperativ-Anmache („Vergiss …!", „Schluss mit
+…!"), keine Ausrufezeichen-Euphorie, keine Werbe-Floskeln („Traum-Van", „begeistert
+jeden Prüfer"). Ruhig und konkret schlägt laut und aufgeregt.
+
+Beispiel:
+- ❌ „Vergiss instabile Lüsterklemmen! Die Wago 221 ist der absolute Gamechanger."
+- ✅ „Wago-Klemmen der Serie 221 sitzen vibrationsfest und lassen sich per Hebel
+  werkzeuglos öffnen — praktisch beim Van-Ausbau."
 
 ## Genauigkeit
 

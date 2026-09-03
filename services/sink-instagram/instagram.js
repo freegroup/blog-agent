@@ -1,20 +1,31 @@
 import { fetchWithRetry } from "@blogagent/http";
 
 /**
- * Thin client for the Instagram Graph API — just the things the sink needs:
- * one-time consent URL, code → short-lived token, short → long-lived token,
- * token refresh, Instagram User ID lookup, and the two-step media publish.
+ * Thin client for the "Instagram API with Instagram Login" (the current, Facebook-
+ * page-free flavor) — just the things the sink needs: one-time consent URL,
+ * code → short-lived token, short → long-lived token, token refresh, Instagram
+ * User ID lookup, and the two-step media publish.
  *
- * Publishing is two steps: POST /{ig-user-id}/media (create container, returns
- * creation_id) → POST /{ig-user-id}/media_publish (publish it, returns media_id).
- * The image must be at a publicly accessible URL — the sink uploads it to GitHub
- * (instagram-assets branch) before calling createContainer.
+ * Auth flow (Instagram Login, not Facebook Login):
+ *   authorize  → https://www.instagram.com/oauth/authorize   (consent screen)
+ *   code→token → https://api.instagram.com/oauth/access_token (short-lived token + user_id)
+ *   long-lived → GET {graph}/access_token?grant_type=ig_exchange_token   (60 days, needs secret)
+ *   refresh    → GET {graph}/refresh_access_token?grant_type=ig_refresh_token (no secret)
+ * where {graph} is https://graph.instagram.com.
+ *
+ * Publishing is two steps on the graph host: POST /{ig-user-id}/media (create
+ * container, returns creation_id) → POST /{ig-user-id}/media_publish (publish it,
+ * returns media_id). The image must be at a publicly accessible URL — the sink
+ * uploads it to GitHub (instagram-assets branch) before calling createContainer.
  *
  * Long-lived tokens last 60 days. The sink refreshes automatically while the token
- * is still valid; if it expires a new OAuth run is needed.
+ * is still valid; a fully expired token requires a new OAuth run (or a freshly
+ * generated token pasted into .env).
  */
 
-const AUTH_BASE = "https://www.facebook.com/v21.0/dialog/oauth";
+// Fixed OAuth hosts for Instagram Login — not configurable (no sandbox for Instagram).
+const OAUTH_AUTHORIZE = "https://www.instagram.com/oauth/authorize";
+const OAUTH_TOKEN = "https://api.instagram.com/oauth/access_token";
 
 // Instagram caption limit (chars visible before the "more" fold at ~125 chars).
 export const CAPTION_MAX = 2200;
@@ -23,8 +34,8 @@ export const CAPTION_MAX = 2200;
 export const REFRESH_THRESHOLD_S = 7 * 24 * 3600;
 
 /**
- * Build the Facebook OAuth consent URL. Scopes needed for content publishing:
- * instagram_basic, instagram_content_publish, pages_show_list, pages_read_engagement.
+ * Build the Instagram Login consent URL. Scopes for content publishing:
+ * instagram_business_basic, instagram_business_content_publish.
  */
 export function authUrl({ appId, redirectUri, scopes, state = "blogagent" }) {
   const query = new URLSearchParams({
@@ -34,7 +45,7 @@ export function authUrl({ appId, redirectUri, scopes, state = "blogagent" }) {
     response_type: "code",
     state,
   });
-  return `${AUTH_BASE}?${query}`;
+  return `${OAUTH_AUTHORIZE}?${query}`;
 }
 
 function appendToken(url, token) {
@@ -50,11 +61,12 @@ async function graphGet(apiUrl, path, token) {
 }
 
 async function graphPost(apiUrl, path, token, body) {
+  // Instagram's graph host takes the access token as a query param; the body is JSON.
   const res = await fetchWithRetry(
-    `${apiUrl}${path}`,
+    appendToken(`${apiUrl}${path}`, token),
     {
       method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     },
     { label: `Instagram POST ${path.split("?")[0].split("/").at(-1)}` },
@@ -64,20 +76,35 @@ async function graphPost(apiUrl, path, token, body) {
   return json;
 }
 
-/** Exchange the authorization code from the redirect for a short-lived token. */
-export async function exchangeCode({ apiUrl, appId, appSecret, code, redirectUri }) {
-  const url = `${apiUrl}/oauth/access_token?` +
-    new URLSearchParams({ client_id: appId, client_secret: appSecret, redirect_uri: redirectUri, code });
-  const res = await fetchWithRetry(url, {}, { label: "Instagram exchangeCode" });
+/**
+ * Exchange the authorization code from the redirect for a short-lived token.
+ * Instagram Login uses a form-encoded POST and returns the user_id alongside the token.
+ */
+export async function exchangeCode({ appId, appSecret, code, redirectUri }) {
+  const res = await fetchWithRetry(
+    OAUTH_TOKEN,
+    {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: appId,
+        client_secret: appSecret,
+        grant_type: "authorization_code",
+        redirect_uri: redirectUri,
+        code,
+      }).toString(),
+    },
+    { label: "Instagram exchangeCode" },
+  );
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Instagram exchangeCode ${res.status}: ${JSON.stringify(json)}`);
-  return json; // { access_token, token_type }
+  return json; // { access_token, user_id, permissions }
 }
 
-/** Exchange a short-lived token for a long-lived one (60 days). */
-export async function toLongLived({ apiUrl, appId, appSecret, shortToken }) {
-  const url = `${apiUrl}/oauth/access_token?` +
-    new URLSearchParams({ grant_type: "fb_exchange_token", client_id: appId, client_secret: appSecret, fb_exchange_token: shortToken });
+/** Exchange a short-lived token for a long-lived one (60 days). Needs the app secret. */
+export async function toLongLived({ apiUrl, appSecret, shortToken }) {
+  const url = `${apiUrl}/access_token?` +
+    new URLSearchParams({ grant_type: "ig_exchange_token", client_secret: appSecret, access_token: shortToken });
   const res = await fetchWithRetry(url, {}, { label: "Instagram toLongLived" });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Instagram toLongLived ${res.status}: ${JSON.stringify(json)}`);
@@ -85,27 +112,27 @@ export async function toLongLived({ apiUrl, appId, appSecret, shortToken }) {
 }
 
 /**
- * Refresh a long-lived token (same endpoint, same mechanism — only works while
- * the token is still valid; a fully expired token requires a new OAuth run).
+ * Refresh a long-lived token. Unlike Facebook Login, this needs NO app secret —
+ * only the still-valid token. A fully expired token requires a new OAuth run.
  */
-export async function refreshLongLived({ apiUrl, appId, appSecret, token }) {
-  return toLongLived({ apiUrl, appId, appSecret, shortToken: token });
+export async function refreshLongLived({ apiUrl, token }) {
+  const url = `${apiUrl}/refresh_access_token?` +
+    new URLSearchParams({ grant_type: "ig_refresh_token", access_token: token });
+  const res = await fetchWithRetry(url, {}, { label: "Instagram refreshLongLived" });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(`Instagram refreshLongLived ${res.status}: ${JSON.stringify(json)}`);
+  return json; // { access_token, token_type, expires_in }
 }
 
 /**
- * Resolve the Instagram Business/Creator account ID from the user's Facebook Pages.
- * Requires `instagram_basic` and `pages_show_list` permissions.
- * Throws if no connected Instagram account is found.
+ * Resolve the Instagram professional account ID for the token holder.
+ * Instagram Login exposes it directly on /me — no Facebook Page lookup.
  */
 export async function getUserId({ apiUrl, token }) {
-  const pages = await graphGet(apiUrl, "/me/accounts", token);
-  for (const page of pages.data ?? []) {
-    const ig = await graphGet(apiUrl, `/${page.id}?fields=instagram_business_account`, token);
-    if (ig.instagram_business_account?.id) return ig.instagram_business_account.id;
-  }
-  throw new Error(
-    "no Instagram Business/Creator account found — connect your Instagram account to a Facebook Page first",
-  );
+  const me = await graphGet(apiUrl, "/me?fields=user_id", token);
+  const id = me.user_id ?? me.id;
+  if (!id) throw new Error(`could not resolve Instagram user id: ${JSON.stringify(me)}`);
+  return String(id);
 }
 
 /**
@@ -120,8 +147,26 @@ export async function createContainer({ apiUrl, userId, token, imageUrl, caption
 }
 
 /**
+ * Between create and publish: Instagram fetches and processes the image
+ * asynchronously, so publishing immediately fails with code 9007 ("Media ID is not
+ * available"). Poll the container's status_code until it is FINISHED. Throws on
+ * ERROR/EXPIRED or if it is still not ready after the given number of tries.
+ */
+export async function waitForContainerReady({ apiUrl, containerId, token, tries = 15, delayMs = 2000 }) {
+  for (let i = 0; i < tries; i++) {
+    const { status_code } = await graphGet(apiUrl, `/${containerId}?fields=status_code`, token);
+    if (status_code === "FINISHED") return;
+    if (status_code === "ERROR" || status_code === "EXPIRED") {
+      throw new Error(`Instagram media container ${status_code} (id ${containerId})`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  throw new Error(`Instagram media container still not ready after ${tries} checks (id ${containerId})`);
+}
+
+/**
  * Step 2: publish the container. Returns the published media_id.
- * Call this after createContainer succeeds.
+ * Call this after createContainer succeeds and waitForContainerReady resolves.
  */
 export async function publishContainer({ apiUrl, userId, token, creationId }) {
   const json = await graphPost(apiUrl, `/${userId}/media_publish`, token, { creation_id: creationId });

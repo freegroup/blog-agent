@@ -2,19 +2,19 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { authUrl, CAPTION_MAX } from "../instagram.js";
 
-test("authUrl builds the Facebook consent URL with comma-joined scopes", () => {
+test("authUrl builds the Instagram Login consent URL with comma-joined scopes", () => {
   const url = new URL(
     authUrl({
       appId: "app123",
       redirectUri: "http://localhost:5087/oauth/callback",
-      scopes: ["instagram_basic", "instagram_content_publish"],
+      scopes: ["instagram_business_basic", "instagram_business_content_publish"],
     }),
   );
-  assert.equal(url.origin + url.pathname, "https://www.facebook.com/v21.0/dialog/oauth");
+  assert.equal(url.origin + url.pathname, "https://www.instagram.com/oauth/authorize");
   assert.equal(url.searchParams.get("client_id"), "app123");
   assert.equal(url.searchParams.get("redirect_uri"), "http://localhost:5087/oauth/callback");
   assert.equal(url.searchParams.get("response_type"), "code");
-  assert.equal(url.searchParams.get("scope"), "instagram_basic,instagram_content_publish");
+  assert.equal(url.searchParams.get("scope"), "instagram_business_basic,instagram_business_content_publish");
 });
 
 test("authUrl includes state parameter", () => {

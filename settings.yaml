@@ -94,11 +94,13 @@ sink-telegram:
 
 sink-instagram:
   port: 5087
-  api_url: https://graph.facebook.com/v21.0
+  api_url: https://graph.instagram.com
   # Sink lädt das Bild per GITHUB_TOKEN nach api.github.com hoch, gibt Instagram die raw-URL.
-  github_repo: freegroup/CampingElectricCalculator
+  github_repo: freegroup/blog-agent
   github_branch: instagram-assets
   redirect_uri: http://localhost:5087/oauth/callback
+  # An die Caption gehängt, wenn der Pitch keinen target_url mitbringt (Instagram-Links sind nicht klickbar).
+  default_link: https://camper-elektrik-planer.de/blog/
 
 sink-pinterest:
   port: 5086
