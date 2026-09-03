@@ -10,19 +10,20 @@ import { whyFetchFailed } from "@blogagent/http";
  * Only the target's response counts: it is what the queue records as the
  * publication ref, and only its failure propagates.
  *
- * `fetch` and `log` are injectable so this is testable without a network.
+ * Tests mock the global `fetch` and spy on `console` — no injected parameters.
  */
-export async function deliver({ targetSink, loggingSink }, payload, { fetch = globalThis.fetch, log = console } = {}) {
+export async function deliver(briefing, payload) {
+  const { targetSink, loggingSink } = briefing;
   if (loggingSink) {
-    await postSink(fetch, loggingSink, payload).catch((err) =>
-      log.error(`[newsroom] logging-sink ${loggingSink} failed (non-fatal): ${err.message}`),
+    await postSink(loggingSink, payload).catch((err) =>
+      console.error(`[newsroom] logging-sink ${loggingSink} failed (non-fatal): ${err.message}`),
     );
   }
-  return postSink(fetch, targetSink, payload);
+  return postSink(targetSink, payload);
 }
 
 /** POST the payload to one sink; throw on unreachable host or non-2xx. */
-async function postSink(fetch, url, payload) {
+async function postSink(url, payload) {
   let response;
   try {
     response = await fetch(url, {

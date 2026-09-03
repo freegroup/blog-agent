@@ -21,6 +21,7 @@ test("buildConfig turns settings + env into static vars", () => {
     INSTAGRAM_ACCESS_TOKEN: "atok",
     INSTAGRAM_TOKEN_EXPIRES_AT: "1700000000",
     INSTAGRAM_USER_ID: "42",
+    INSTAGRAM_CAMPER_ACCESS_TOKEN: "camtok",
   });
 
   assert.equal(c.port, 5087);
@@ -30,9 +31,13 @@ test("buildConfig turns settings + env into static vars", () => {
   assert.equal(c.appId, "app");
   assert.equal(c.appSecret, "sec");
   assert.equal(c.githubToken, "tok");
-  assert.equal(c.initialAccessToken, "atok");
-  assert.equal(c.initialTokenExpiresAt, 1_700_000_000, "env string → number");
-  assert.equal(c.initialUserId, "42");
+  // Token state is a snapshot of every INSTAGRAM_* var — the default account
+  // (unsuffixed) and any named account (suffixed) alike; index.js resolves per account.
+  assert.equal(c.igEnv.INSTAGRAM_ACCESS_TOKEN, "atok", "default account token");
+  assert.equal(c.igEnv.INSTAGRAM_TOKEN_EXPIRES_AT, "1700000000");
+  assert.equal(c.igEnv.INSTAGRAM_USER_ID, "42");
+  assert.equal(c.igEnv.INSTAGRAM_CAMPER_ACCESS_TOKEN, "camtok", "a named account's token is captured too");
+  assert.ok(!("GITHUB_TOKEN" in c.igEnv), "only INSTAGRAM_* variables are snapshotted");
 });
 
 test("buildConfig applies defaults for optional keys", () => {
@@ -59,7 +64,5 @@ test("buildConfig never throws on missing secrets — importing this module for 
   assert.equal(c.appId, "");
   assert.equal(c.appSecret, "");
   assert.equal(c.githubToken, "");
-  assert.equal(c.initialAccessToken, "");
-  assert.equal(c.initialTokenExpiresAt, 0, "unset expiry reads as 0 (unknown), not NaN");
-  assert.equal(c.initialUserId, "");
+  assert.deepEqual(c.igEnv, {}, "no INSTAGRAM_* vars → empty snapshot, not a throw");
 });

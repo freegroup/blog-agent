@@ -15,7 +15,7 @@ import { parse } from "yaml";
  * Tone and form are set by the channel, so its target URLs live in the same file
  * as the voice.
  *
- * @typedef {{name:string, when:string|null, targetSink:string, loggingSink:string|null, deadletterSink:string|null, prompt:string, file:string}} Briefing
+ * @typedef {{name:string, when:string|null, targetSink:string, loggingSink:string|null, deadletterSink:string|null, frontmatter:object, prompt:string, file:string}} Briefing
  */
 export function loadBriefings(dir) {
   const briefings = [];
@@ -37,6 +37,11 @@ export function loadBriefings(dir) {
       targetSink: meta["target-sink"],
       loggingSink: meta["logging-sink"] ?? null,
       deadletterSink: meta["deadletter-sink"] ?? null,
+      // The whole parsed frontmatter, handed to sinks verbatim in the delivery
+      // payload. A sink reads only what it understands (e.g. `account`) and ignores
+      // the rest — which keeps it ignorant of where briefings are stored (files
+      // today, a DB tomorrow). The prompt (the body) is deliberately not included.
+      frontmatter: meta,
       prompt: body.trim(),
       file,
     });

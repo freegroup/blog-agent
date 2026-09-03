@@ -36,39 +36,65 @@ import { upsertEnvVar } from "./token-store.js";
  * constants — comes from config.js. This file reads neither process.env nor settings.
  */
 
-// In-memory token state. Seeded from config's INITIAL values (the env snapshot taken
-// at boot); updated by the OAuth flow and subsequent refreshes — upsertEnvVar keeps
-// .env in sync. The token may be hand-generated (quick start) or OAuth-obtained; the
-// user id is resolved from the token when absent.
-let accessToken = config.initialAccessToken;
-let tokenExpiresAt = config.initialTokenExpiresAt; // Unix seconds, 0 = unknown
-let userId = config.initialUserId;
+// In-memory token state, one entry per Instagram account. The account is named by
+// the briefing (`payload.briefing.account`); a briefing with no account is the
+// DEFAULT account, which uses the original unsuffixed INSTAGRAM_* variables so an
+// existing single-account setup keeps working. Named accounts use suffixed variables
+// (INSTAGRAM_<ACCOUNT>_ACCESS_TOKEN, …), resolved by convention — no account list is
+// declared anywhere. Entries are seeded lazily from the boot env snapshot and updated
+// by the OAuth flow and refreshes; upsertEnvVar keeps .env in sync.
+const accounts = new Map();
 
-function isAuthorized() {
+const label = (account) => account ?? "default";
+
+/** The .env variable names holding one account's token state. */
+function envKeys(account) {
+  const prefix = account ? `INSTAGRAM_${account.toUpperCase()}_` : "INSTAGRAM_";
+  return { token: `${prefix}ACCESS_TOKEN`, expires: `${prefix}TOKEN_EXPIRES_AT`, userId: `${prefix}USER_ID` };
+}
+
+/** The mutable token state for an account, seeded from the env snapshot on first use. */
+function state(account) {
+  const key = account ?? "";
+  if (!accounts.has(key)) {
+    const k = envKeys(account);
+    accounts.set(key, {
+      accessToken: config.igEnv[k.token] ?? "",
+      tokenExpiresAt: Number(config.igEnv[k.expires] ?? 0), // Unix seconds, 0 = unknown
+      userId: config.igEnv[k.userId] ?? "",
+    });
+  }
+  return accounts.get(key);
+}
+
+function isAuthorized(account) {
   // A valid token is enough to post — the user id is derived from it if not set.
-  return !!accessToken;
+  return !!state(account).accessToken;
 }
 
 /**
- * Persist a fresh token (and optionally a new userId) to memory and .env.
+ * Persist a fresh token (and optionally a new userId) for an account to memory and .env.
+ * @param {string|null} account
  * @param {{access_token:string, expires_in?:number}} tokens
  * @param {string} [igUserId]
  */
-function adoptTokens(tokens, igUserId) {
-  accessToken = tokens.access_token;
-  tokenExpiresAt = Math.floor(Date.now() / 1000) + (tokens.expires_in ?? 5184000); // default 60 days
+function adoptTokens(account, tokens, igUserId) {
+  const st = state(account);
+  const k = envKeys(account);
+  st.accessToken = tokens.access_token;
+  st.tokenExpiresAt = Math.floor(Date.now() / 1000) + (tokens.expires_in ?? 5184000); // default 60 days
   try {
-    upsertEnvVar(config.ENV_PATH, "INSTAGRAM_ACCESS_TOKEN", accessToken);
-    upsertEnvVar(config.ENV_PATH, "INSTAGRAM_TOKEN_EXPIRES_AT", String(tokenExpiresAt));
-    console.log("[sink-instagram] access token written to .env");
+    upsertEnvVar(config.ENV_PATH, k.token, st.accessToken);
+    upsertEnvVar(config.ENV_PATH, k.expires, String(st.tokenExpiresAt));
+    console.log(`[sink-instagram] access token written to .env (account ${label(account)})`);
   } catch (err) {
     console.error(`[sink-instagram] could not write token to .env: ${err.message}`);
   }
-  if (igUserId && igUserId !== userId) {
-    userId = igUserId;
+  if (igUserId && igUserId !== st.userId) {
+    st.userId = igUserId;
     try {
-      upsertEnvVar(config.ENV_PATH, "INSTAGRAM_USER_ID", userId);
-      console.log(`[sink-instagram] Instagram User ID written to .env: ${userId}`);
+      upsertEnvVar(config.ENV_PATH, k.userId, st.userId);
+      console.log(`[sink-instagram] Instagram User ID written to .env: ${st.userId} (account ${label(account)})`);
     } catch (err) {
       console.error(`[sink-instagram] could not write user ID to .env: ${err.message}`);
     }
@@ -76,35 +102,37 @@ function adoptTokens(tokens, igUserId) {
 }
 
 /**
- * Return a valid access token, refreshing it if it expires within 7 days.
+ * Return a valid access token for an account, refreshing it if it expires within 7 days.
  * Throws if the token is absent or fully expired (needs a fresh token / OAuth run).
  */
-async function validToken() {
-  if (!accessToken) throw new Error(`not authorized yet — set INSTAGRAM_ACCESS_TOKEN or open http://localhost:${config.port}/oauth/start once`);
-  // Unknown expiry (a hand-generated token without INSTAGRAM_TOKEN_EXPIRES_AT):
+async function validToken(account) {
+  const st = state(account);
+  const { token: tokenVar } = envKeys(account);
+  if (!st.accessToken) throw new Error(`account '${label(account)}' not authorized yet — set ${tokenVar} or open http://localhost:${config.port}/oauth/start?account=${account ?? ""} once`);
+  // Unknown expiry (a hand-generated token without the *_TOKEN_EXPIRES_AT var):
   // use it as-is; if it has expired the API surfaces a 401 to the caller.
-  if (!tokenExpiresAt) return accessToken;
+  if (!st.tokenExpiresAt) return st.accessToken;
   const nowS = Math.floor(Date.now() / 1000);
-  const needsRefresh = tokenExpiresAt - nowS < config.REFRESH_THRESHOLD_S;
-  if (!needsRefresh) return accessToken;
-  if (nowS >= tokenExpiresAt) throw new Error(`token expired — generate a new token or open http://localhost:${config.port}/oauth/start`);
-  console.log("[sink-instagram] refreshing long-lived token");
-  adoptTokens(await refreshLongLived({ apiUrl: config.apiUrl, token: accessToken }));
-  return accessToken;
+  const needsRefresh = st.tokenExpiresAt - nowS < config.REFRESH_THRESHOLD_S;
+  if (!needsRefresh) return st.accessToken;
+  if (nowS >= st.tokenExpiresAt) throw new Error(`account '${label(account)}' token expired — generate a new token or open http://localhost:${config.port}/oauth/start?account=${account ?? ""}`);
+  console.log(`[sink-instagram] refreshing long-lived token (account ${label(account)})`);
+  adoptTokens(account, await refreshLongLived({ apiUrl: config.apiUrl, token: st.accessToken }));
+  return st.accessToken;
 }
 
-/** The Instagram user id, resolved from the token and persisted on first use. */
-async function ensureUserId(token) {
-  if (userId) return userId;
-  const resolved = await getUserId({ apiUrl: config.apiUrl, token });
-  userId = resolved;
+/** The Instagram user id for an account, resolved from the token and persisted on first use. */
+async function ensureUserId(account, token) {
+  const st = state(account);
+  if (st.userId) return st.userId;
+  st.userId = await getUserId({ apiUrl: config.apiUrl, token });
   try {
-    upsertEnvVar(config.ENV_PATH, "INSTAGRAM_USER_ID", userId);
-    console.log(`[sink-instagram] Instagram User ID written to .env: ${userId}`);
+    upsertEnvVar(config.ENV_PATH, envKeys(account).userId, st.userId);
+    console.log(`[sink-instagram] Instagram User ID written to .env: ${st.userId} (account ${label(account)})`);
   } catch (err) {
     console.error(`[sink-instagram] could not write user ID to .env: ${err.message}`);
   }
-  return userId;
+  return st.userId;
 }
 
 /** Convert WebP (base64) to JPEG Buffer — Instagram expects JPEG/PNG. */
@@ -118,7 +146,9 @@ function buildCaption(title, description, link) {
 }
 
 async function publish(payload) {
-  const { slug, title, description, images = [], meta } = payload ?? {};
+  const { slug, title, description, images = [], meta, briefing } = payload ?? {};
+  // Which Instagram profile: named by the briefing, else the default account.
+  const account = briefing?.account || null;
 
   const image = images[0];
   if (!image) return { status: 400, body: { errors: ["an Instagram post needs an image — none in this article"] } };
@@ -127,16 +157,16 @@ async function publish(payload) {
   const link = meta?.context?.target_url || config.defaultLink;
   const caption = buildCaption(title, description, link);
 
-  if (!isAuthorized()) {
-    console.log(`[sink-instagram] DRY RUN — would post:`);
+  if (!isAuthorized(account)) {
+    console.log(`[sink-instagram] DRY RUN (account ${label(account)}) — would post:`);
     console.log(`  slug:    ${slug ?? "(none)"}`);
     console.log(`  caption: ${caption.slice(0, 120)}${caption.length > 120 ? "…" : ""}`);
     console.log(`  images:  ${images.map((i) => i.name ?? "?").join(", ")}`);
     return { status: 201, body: { publication_ref: "instagram:dry-run", dry_run: true } };
   }
 
-  const token = await validToken();
-  const igUserId = await ensureUserId(token);
+  const token = await validToken(account);
+  const igUserId = await ensureUserId(account, token);
   const jpegBuffer = await toJpegBuffer(image.data);
   const filename = (image.name ?? "foto-1").replace(/\.[^.]+$/, "") + ".jpg";
 
@@ -154,7 +184,7 @@ async function publish(payload) {
   await waitForContainerReady({ apiUrl: config.apiUrl, containerId: creationId, token });
   const mediaId = await publishContainer({ apiUrl: config.apiUrl, userId: igUserId, token, creationId });
 
-  console.log(`[sink-instagram] posted ${slug ?? "(no slug)"} → media ${mediaId}`);
+  console.log(`[sink-instagram] posted ${slug ?? "(no slug)"} → media ${mediaId} (account ${label(account)})`);
   return { status: 201, body: { publication_ref: `instagram:${mediaId}` } };
 }
 
@@ -165,22 +195,29 @@ const server = http.createServer(async (req, res) => {
   };
 
   if (req.method === "GET" && req.url.startsWith("/oauth/start")) {
-    res.writeHead(302, { location: authUrl({ authorizeUrl: config.OAUTH_AUTHORIZE, appId: config.appId, redirectUri: config.redirectUri, scopes: config.SCOPES }) });
+    // ?account=<name> flows through OAuth's `state` so the callback stores the token
+    // under the right account; absent → the default account.
+    const account = new URL(req.url, `http://localhost:${config.port}`).searchParams.get("account") || null;
+    res.writeHead(302, {
+      location: authUrl({ authorizeUrl: config.OAUTH_AUTHORIZE, appId: config.appId, redirectUri: config.redirectUri, scopes: config.SCOPES, state: account ?? "" }),
+    });
     return res.end();
   }
 
   if (req.method === "GET" && req.url.startsWith("/oauth/callback")) {
-    const code = new URL(req.url, `http://localhost:${config.port}`).searchParams.get("code");
+    const params = new URL(req.url, `http://localhost:${config.port}`).searchParams;
+    const code = params.get("code");
+    const account = params.get("state") || null; // which account this consent was for
     if (!code) return reply(400, "Kein code in der Antwort von Instagram.", "text/plain; charset=utf-8");
     try {
       const short = await exchangeCode({ tokenUrl: config.OAUTH_TOKEN, appId: config.appId, appSecret: config.appSecret, code, redirectUri: config.redirectUri });
       const long = await toLongLived({ apiUrl: config.apiUrl, appSecret: config.appSecret, shortToken: short.access_token });
       // Instagram Login returns the user_id with the short token; fall back to /me.
       const igUserId = short.user_id ? String(short.user_id) : await getUserId({ apiUrl: config.apiUrl, token: long.access_token });
-      adoptTokens(long, igUserId);
+      adoptTokens(account, long, igUserId);
       return reply(
         200,
-        `✅ Instagram verbunden (User ID: ${igUserId}). Token und User ID wurden in .env gespeichert — dieses Fenster kann geschlossen werden.`,
+        `✅ Instagram verbunden (Konto ${label(account)}, User ID: ${igUserId}). Token und User ID wurden in .env gespeichert — dieses Fenster kann geschlossen werden.`,
         "text/html; charset=utf-8",
       );
     } catch (err) {

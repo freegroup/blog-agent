@@ -20,9 +20,9 @@ const DEFAULT_BRANCH = "instagram-assets";
  * (and the app secret is only needed for the OAuth bootstrap), so nothing is strictly
  * required at boot — the service reports its authorization state itself.
  *
- * The three token fields are the INITIAL values only. The running service keeps them
- * in mutable state (the OAuth flow and refreshes update both memory and .env); config
- * is the boot snapshot, not the live token.
+ * `igEnv` is the INITIAL snapshot of every INSTAGRAM_* variable. The running service
+ * keeps per-account token state in memory (the OAuth flow and refreshes update both
+ * memory and .env); config is the boot snapshot, not the live token.
  */
 export function buildConfig(settings, env) {
   const cfg = section(settings, "sink-instagram");
@@ -51,12 +51,13 @@ export function buildConfig(settings, env) {
     appId: env.INSTAGRAM_APP_ID ?? "",
     appSecret: env.INSTAGRAM_APP_SECRET ?? "",
     githubToken: env.GITHUB_TOKEN ?? "",
-    // Initial token state, seeded from the environment on startup. The token may be
-    // hand-generated (quick start) or OAuth-obtained; the user id is resolved from the
-    // token when absent.
-    initialAccessToken: env.INSTAGRAM_ACCESS_TOKEN ?? "",
-    initialTokenExpiresAt: Number(env.INSTAGRAM_TOKEN_EXPIRES_AT ?? 0), // Unix seconds, 0 = unknown
-    initialUserId: env.INSTAGRAM_USER_ID ?? "",
+    // A snapshot of every INSTAGRAM_* variable, so index.js can seed one token per
+    // account by convention (INSTAGRAM_<ACCOUNT>_ACCESS_TOKEN) without reading
+    // process.env itself and without a predeclared account list — the account name
+    // arrives on the briefing at publish time. The unsuffixed INSTAGRAM_ACCESS_TOKEN
+    // is the default account (a briefing with no `account`), so existing single-
+    // account setups keep working unchanged.
+    igEnv: Object.fromEntries(Object.entries(env).filter(([k]) => k.startsWith("INSTAGRAM_"))),
   };
 }
 

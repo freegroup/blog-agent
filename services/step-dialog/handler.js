@@ -23,10 +23,11 @@ import { runFilters } from "./pipeline.js";
 
 /**
  * Forward an envelope to the next hop and read its answer. Returns `{status, body}`;
- * throws only when the hop is unreachable. `fetch` is injectable for tests.
+ * throws only when the hop is unreachable. Tests mock the global `fetch` that
+ * `fetchWithRetry` calls — no injected parameter.
  */
-export async function deliver(out, envelope, { fetch = fetchWithRetry } = {}) {
-  const response = await fetch(out, {
+export async function deliver(out, envelope) {
+  const response = await fetchWithRetry(out, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(envelope),

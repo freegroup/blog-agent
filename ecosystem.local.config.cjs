@@ -148,5 +148,15 @@ module.exports = {
       exec_mode: "fork",
       ...shared,
     },
+    {
+      // Watches the Instagram account; reports newly published posts to Telegram and
+      // the chat hub — the "is posted" signal sink-instagram does not send. Read-only:
+      // re-reads INSTAGRAM_ACCESS_TOKEN from .env each poll (sink-instagram writes it).
+      // Single fork poller. Needs the Telegram secrets (via mcp-telegram).
+      name: "watch-instagram",
+      script: "services/watch-instagram/index.js",
+      exec_mode: "fork",
+      ...shared,
+    },
   ],
 };

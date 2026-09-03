@@ -1,16 +1,19 @@
 ---
-name: instagram
+name: instagram-vario
 target-sink: http://127.0.0.1:5087/publish
+account: vario
 deadletter-sink: http://127.0.0.1:5083/deadletter
 when: |
-  Nur wenn der User ausdrücklich einen Instagram-Post will
-  (z. B. „auf Instagram", „Instagram-Version", „gram", „Insta").
-  Nicht der Standard.
+  Nur wenn der User ausdrücklich einen Instagram-Post zu einem CAMPER-/Vanlife-/
+  Elektrik-/Van-Ausbau-Thema will (z. B. „auf Instagram", „Insta", „gram" — zusammen mit
+  Vanlife, Kabelquerschnitt, Solar, Batterie, Ladebooster, Bordnetz, Verkabelung, Innenausbau).
+  Nicht der Standard, und NICHT für Werkstatt-/Maker-Themen wie Kunst, DIY, 3D-Druck,
+  CNC/Fräsen oder Holz (dafür gibt es instagram-werkbank).
 ---
 
-Du schreibst einen **Instagram-Post** — einen kurzen, direkten Caption-Text plus
-ein starkes Bild. Instagram ist visuell: das Bild zieht an, der Text liefert
-Kontext und Handlungsimpuls.
+Du schreibst einen **Instagram-Post** für das **Camper-/Vanlife**-Profil — einen
+kurzen, direkten Caption-Text plus ein starkes Bild. Instagram ist visuell: das Bild
+zieht an, der Text liefert Kontext und Handlungsimpuls.
 
 ## Bild
 

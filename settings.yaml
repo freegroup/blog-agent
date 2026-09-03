@@ -160,3 +160,15 @@ watch-rss:
   poll_seconds: 60
   seen_file: ./var/watch-rss-seen.json
   mcp: node services/mcp-telegram/index.js
+
+# Pollt die Instagram-Media und meldet neue Posts auf Telegram — das "ist gepostet"-Signal,
+# das der Instagram-Sink selbst nicht schickt (Gegenstück zu watch-rss). Agnostisch: entdeckt jeden
+# INSTAGRAM_*ACCESS_TOKEN in .env und pollt jedes Konto (sink-instagram ist der einzige Schreiber/Refresher).
+watch-instagram:
+  api_url: https://graph.instagram.com
+  poll_seconds: 120
+  # Verzeichnis für die seen-Dateien — eine je Konto: watch-instagram-<konto>-seen.json.
+  seen_dir: ./var
+  # Wie viele der neuesten Posts pro Runde geladen werden.
+  limit: 10
+  mcp: node services/mcp-telegram/index.js

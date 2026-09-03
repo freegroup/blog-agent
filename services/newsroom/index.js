@@ -154,6 +154,10 @@ async function handle(pitch, job) {
     // they are not part of the article and validating sinks ignore this field.
     debug_images: doc.imagesDropped ?? [],
     revises: pitch.envelope.revises ?? null,
+    // The selected briefing's full frontmatter, so a sink can read per-channel
+    // config it cares about (e.g. `account` for the Instagram profile) without
+    // knowing anything about how or where briefings are stored.
+    briefing: briefing.frontmatter,
     // The document's own truth, persisted next to the article as blogagent.yaml so
     // a later revision can read it back (plot, slug, image_names, …). Same shape
     // the queue stores; runtime-only review/revise are stripped by persistable.
