@@ -1,10 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rawUrl, DEFAULT_BRANCH } from "../github-assets.js";
-
-test("DEFAULT_BRANCH is instagram-assets", () => {
-  assert.equal(DEFAULT_BRANCH, "instagram-assets");
-});
+import { rawUrl } from "../github-assets.js";
 
 test("rawUrl builds the correct raw.githubusercontent.com URL", () => {
   const url = rawUrl("freegroup/CampingElectricCalculator", "instagram-assets", "camper-kabel-2024", "foto-1.jpg");

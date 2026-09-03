@@ -23,21 +23,12 @@ import { fetchWithRetry } from "@blogagent/http";
  * generated token pasted into .env).
  */
 
-// Fixed OAuth hosts for Instagram Login — not configurable (no sandbox for Instagram).
-const OAUTH_AUTHORIZE = "https://www.instagram.com/oauth/authorize";
-const OAUTH_TOKEN = "https://api.instagram.com/oauth/access_token";
-
-// Instagram caption limit (chars visible before the "more" fold at ~125 chars).
-export const CAPTION_MAX = 2200;
-
-// Refresh when fewer than this many seconds remain (7 days).
-export const REFRESH_THRESHOLD_S = 7 * 24 * 3600;
-
 /**
  * Build the Instagram Login consent URL. Scopes for content publishing:
- * instagram_business_basic, instagram_business_content_publish.
+ * instagram_business_basic, instagram_business_content_publish. The authorize host
+ * (`authorizeUrl`) is passed in by the caller — this module holds no configuration.
  */
-export function authUrl({ appId, redirectUri, scopes, state = "blogagent" }) {
+export function authUrl({ authorizeUrl, appId, redirectUri, scopes, state = "blogagent" }) {
   const query = new URLSearchParams({
     client_id: appId,
     redirect_uri: redirectUri,
@@ -45,7 +36,7 @@ export function authUrl({ appId, redirectUri, scopes, state = "blogagent" }) {
     response_type: "code",
     state,
   });
-  return `${OAUTH_AUTHORIZE}?${query}`;
+  return `${authorizeUrl}?${query}`;
 }
 
 function appendToken(url, token) {
@@ -78,11 +69,12 @@ async function graphPost(apiUrl, path, token, body) {
 
 /**
  * Exchange the authorization code from the redirect for a short-lived token.
- * Instagram Login uses a form-encoded POST and returns the user_id alongside the token.
+ * Instagram Login uses a form-encoded POST and returns the user_id alongside the
+ * token. The token host (`tokenUrl`) is passed in by the caller.
  */
-export async function exchangeCode({ appId, appSecret, code, redirectUri }) {
+export async function exchangeCode({ tokenUrl, appId, appSecret, code, redirectUri }) {
   const res = await fetchWithRetry(
-    OAUTH_TOKEN,
+    tokenUrl,
     {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -139,9 +131,9 @@ export async function getUserId({ apiUrl, token }) {
  * Step 1: create a media container for the image. Returns the creation_id.
  * The image must be at a publicly accessible URL.
  */
-export async function createContainer({ apiUrl, userId, token, imageUrl, caption }) {
+export async function createContainer({ apiUrl, userId, token, imageUrl, caption, captionMax }) {
   const body = { image_url: imageUrl };
-  if (caption?.trim()) body.caption = caption.trim().slice(0, CAPTION_MAX);
+  if (caption?.trim()) body.caption = caption.trim().slice(0, captionMax);
   const json = await graphPost(apiUrl, `/${userId}/media`, token, body);
   return json.id; // creation_id
 }

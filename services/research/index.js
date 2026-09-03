@@ -1,23 +1,16 @@
 #!/usr/bin/env node
 import http from "node:http";
-import { loadSettings, section } from "@blogagent/config";
+import { config } from "./config.js";
 import { makeHandler } from "./handler.js";
 
 /**
- * Bootstrap only: read settings, bind the port, wire the handler. This file is the
- * process entry point and is never imported, so it needs no run-as-main guard —
- * every testable part lives in handler.js and context.js.
+ * Bootstrap only: bind the port, wire the handler. This file is the process entry
+ * point and is never imported, so it needs no run-as-main guard — every testable
+ * part lives in handler.js and context.js, all config in config.js.
  */
-const cfg = section(loadSettings(), "research");
-// Required, no default — a misconfigured port must fail loudly, not silently
-// bind somewhere unexpected.
-const PORT = cfg.num("port");
-// Required — a research with nowhere to deliver is a dead end, not a default.
-const OUT = cfg.str("out");
-
-const server = http.createServer(makeHandler(OUT));
+const server = http.createServer(makeHandler(config.out));
 // Localhost only, like every other hop — the chain never leaves the machine.
-server.listen(PORT, "127.0.0.1", () => console.log(`[research] :${PORT} → ${OUT}`));
+server.listen(config.port, "127.0.0.1", () => console.log(`[research] :${config.port} → ${config.out}`));
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, () => server.close(() => process.exit(0)));

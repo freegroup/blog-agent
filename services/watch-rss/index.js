@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import path from "node:path";
-import { loadSettings, section } from "@blogagent/config";
 import { fetchWithRetry } from "@blogagent/http";
 import { connectOne } from "@blogagent/mcp";
 import { postMessage } from "@blogagent/chat";
+import { config } from "./config.js";
 import { parseFeed, slugOf, freshItems } from "./feed.js";
 
 /**
@@ -19,26 +19,20 @@ import { parseFeed, slugOf, freshItems } from "./feed.js";
  * On first start it adopts the current feed as a silent baseline — no flood of
  * "new" for posts that already existed — and announces only what appears after.
  */
-const settings = loadSettings();
-const cfg = section(settings, "watch-rss");
-const FEED_URL = cfg.str("feed_url");
-const POLL_MS = cfg.num("poll_seconds", 60) * 1000;
-const SEEN_FILE = cfg.str("seen_file", "./var/watch-rss-seen.json");
-
-const telegram = await connectOne(cfg.str("mcp", "node services/mcp-telegram/index.js"), "watch-rss");
+const telegram = await connectOne(config.mcp, "watch-rss");
 
 function loadSeen() {
   try {
-    return new Set(JSON.parse(readFileSync(SEEN_FILE, "utf8")));
+    return new Set(JSON.parse(readFileSync(config.seenFile, "utf8")));
   } catch {
     return null; // no baseline yet
   }
 }
 
 function saveSeen(seen) {
-  mkdirSync(path.dirname(SEEN_FILE), { recursive: true });
+  mkdirSync(path.dirname(config.seenFile), { recursive: true });
   // Pretty-printed so the file is readable/diff-able when you open it.
-  writeFileSync(SEEN_FILE, JSON.stringify([...seen], null, 2) + "\n");
+  writeFileSync(config.seenFile, JSON.stringify([...seen], null, 2) + "\n");
 }
 
 async function announce(item) {
@@ -53,7 +47,7 @@ async function announce(item) {
 }
 
 async function poll() {
-  const res = await fetchWithRetry(FEED_URL, { headers: { "user-agent": "BlogAgent-watch/1.0" } }, { label: "watch-rss feed" });
+  const res = await fetchWithRetry(config.feedUrl, { headers: { "user-agent": "BlogAgent-watch/1.0" } }, { label: "watch-rss feed" });
   if (!res.ok) throw new Error(`feed ${res.status}`);
   const items = parseFeed(await res.text());
 
@@ -74,7 +68,7 @@ async function poll() {
   if (fresh.length) saveSeen(seen);
 }
 
-console.log(`[watch-rss] ${FEED_URL}, every ${POLL_MS / 1000}s`);
+console.log(`[watch-rss] ${config.feedUrl}, every ${config.pollMs / 1000}s`);
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
@@ -85,5 +79,5 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 
 while (true) {
   await poll().catch((err) => console.error(`[watch-rss] ${err.message}`));
-  await new Promise((r) => setTimeout(r, POLL_MS));
+  await new Promise((r) => setTimeout(r, config.pollMs));
 }

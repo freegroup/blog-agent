@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import http from "node:http";
-import { loadSettings, section } from "@blogagent/config";
 import { validateEnvelope } from "@blogagent/envelope";
 import { connectMany, connectOne } from "@blogagent/mcp";
+import { config } from "./config.js";
 import { loadBriefings } from "./briefings.js";
 import { deliver } from "./deliver.js";
 import { resizeToWebp } from "./media.js";
@@ -23,18 +23,8 @@ import { buildPipeline, runPipeline, persistable, rehydrate } from "./pipeline/i
  * `newsroom.pipeline`. This file only moves documents between the queue, the
  * pipeline and the sink.
  */
-const settings = loadSettings();
-const cfg = section(settings, "newsroom");
-const PORT = cfg.num("port", 5080);
-const RETENTION_H = cfg.num("retention_h", 24);
-const MAX_ATTEMPTS = cfg.num("max_attempts", 3);
-
-/** Grows with each attempt: 30 s, then 60 s, then 90 s. */
-const RETRY_PAUSE_MS = cfg.num("retry_pause_s", 30) * 1000;
-
-const BRIEFINGS_DIR = cfg.str("briefings_dir", "./briefings");
 // Startup load doubles as validation — a broken briefing here is fatal, as it should be.
-let briefings = loadBriefings(BRIEFINGS_DIR);
+let briefings = loadBriefings(config.briefingsDir);
 
 /**
  * Re-read briefings from disk so edits, new sections, and whole new briefing
@@ -46,7 +36,7 @@ let briefings = loadBriefings(BRIEFINGS_DIR);
  */
 function refreshBriefings() {
   try {
-    const next = loadBriefings(BRIEFINGS_DIR);
+    const next = loadBriefings(config.briefingsDir);
     const before = briefings.map((b) => b.name).sort().join(",");
     const after = next.map((b) => b.name).sort().join(",");
     if (before !== after) console.log(`[newsroom] briefings reloaded: ${next.map((b) => b.name).join(", ")}`);
@@ -57,18 +47,18 @@ function refreshBriefings() {
   return briefings;
 }
 
-const queue = new Queue(cfg.str("queue_dir", "./var/queue"), { maxAttempts: MAX_ATTEMPTS });
-const mcp = await connectMany(settings.mcp ?? {});
-const pipeline = await buildPipeline({ settings, mcp });
+const queue = new Queue(config.queueDir, { maxAttempts: config.maxAttempts });
+const mcp = await connectMany(config.mcpServers);
+const pipeline = await buildPipeline({ settings: config.settings, mcp });
 
 // The dispatcher's model — which LLM it uses is a settings choice like any stage's,
 // built through the pipeline's memoised map so there is one place that knows profiles.
-const dispatchLlm = await pipeline.llmFor(settings.newsroom?.dispatch?.llm ?? "default");
+const dispatchLlm = await pipeline.llmFor(config.dispatchLlmProfile);
 
 // The bridge to the user. The newsroom reports its own dispatch decision here;
 // mcp-telegram records every outbound message into the chat history, so we do not
 // mirror it ourselves.
-const telegram = await connectOne(cfg.str("mcp", "node services/mcp-telegram/index.js"), "newsroom");
+const telegram = await connectOne(config.mcp, "newsroom");
 
 /** Tell the user something over Telegram. Best-effort: a send failure must never drop a pitch. */
 async function announce(text) {
@@ -232,8 +222,8 @@ async function work() {
         // attempts happen in one second. A model or a sink that is briefly down
         // would use up every retry before it is back — which is how a working
         // job ends in the dead letter.
-        const pause = RETRY_PAUSE_MS * attempt;
-        console.log(`[newsroom] ${label} retrying in ${pause / 1000}s (attempt ${attempt + 1}/${MAX_ATTEMPTS})`);
+        const pause = config.retryPauseMs * attempt;
+        console.log(`[newsroom] ${label} retrying in ${pause / 1000}s (attempt ${attempt + 1}/${config.maxAttempts})`);
         await new Promise((r) => setTimeout(r, pause));
       }
     }
@@ -326,13 +316,13 @@ const server = http.createServer(async (req, res) => {
 });
 
 // Localhost only: otherwise anyone could curl a pitch straight into publication.
-server.listen(PORT, "127.0.0.1", () => {
+server.listen(config.port, "127.0.0.1", () => {
   const restored = queue.restore();
-  console.log(`[newsroom] :${PORT}${restored ? ` — ${restored} open pitch(es) restored` : ""}`);
+  console.log(`[newsroom] :${config.port}${restored ? ` — ${restored} open pitch(es) restored` : ""}`);
   if (restored) setImmediate(work);
 });
 
-setInterval(() => queue.cleanup(RETENTION_H), 3600_000).unref();
+setInterval(() => queue.cleanup(config.retentionH), 3600_000).unref();
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {

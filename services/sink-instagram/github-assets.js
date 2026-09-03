@@ -9,8 +9,6 @@ import { fetchWithRetry } from "@blogagent/http";
  * (works for public repos — the repo must be public for Instagram to reach it).
  */
 
-export const DEFAULT_BRANCH = "instagram-assets";
-
 /**
  * Construct the raw GitHub URL for a file at `{slug}/{filename}` on a given branch.
  * Pure — no I/O, testable in isolation.

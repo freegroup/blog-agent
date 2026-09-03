@@ -3,9 +3,9 @@ import http from "node:http";
 import path from "node:path";
 import sharp from "sharp";
 import { stringify } from "yaml";
-import { loadSettings, section, secret } from "@blogagent/config";
 import { formatRef, parseRef } from "@blogagent/envelope";
 import { connectOne } from "@blogagent/mcp";
+import { config, assertSecrets } from "./config.js";
 import { GitHub, commitFiles } from "./github.js";
 
 /**
@@ -15,23 +15,10 @@ import { GitHub, commitFiles } from "./github.js";
  * The only process that knows the repo, paths, and token. It never merges —
  * a human gives the imprimatur.
  */
-const cfg = section(loadSettings(), "sink-github");
-const PORT = cfg.num("port", 5081);
-const REPO = cfg.str("repo");
-const BASE_BRANCH = cfg.str("base_branch", "main");
-const CONTENT_PATH = cfg.str("content_path");
-const ASSET_PATH = cfg.str("asset_path");
-// The machine-readable document beside the article (blogagent.yaml). Written on
-// every publish so a later revision can read the article's own truth back.
-const META_PATH = cfg.str("meta_path", "");
-const LABEL = cfg.str("label", "blogagent");
-
-/** Blog format. Target knowledge — the newsroom delivers 2048 px and knows nothing of this. */
-const BLOG_WIDTH = 1600;
-const BLOG_QUALITY = 82;
+assertSecrets();
 
 // Reporting is sink work: the newsroom never sends, it only posts here.
-const telegram = cfg.str("mcp", "") ? await connectOne(cfg.str("mcp"), "sink-github") : null;
+const telegram = config.mcp ? await connectOne(config.mcp, "sink-github") : null;
 
 async function notify(text) {
   if (!telegram) return;
@@ -40,8 +27,7 @@ async function notify(text) {
   );
 }
 
-const gh = new GitHub({ apiUrl: cfg.str("api_url", "https://api.github.com"), repo: REPO, token: secret("GITHUB_TOKEN") });
-const [OWNER, NAME] = REPO.split("/");
+const gh = new GitHub({ apiUrl: config.apiUrl, repo: config.repo, token: config.githubToken });
 
 async function publish(payload) {
   // The sink does not validate — it delivers. The pipeline guarantees what matters
@@ -66,24 +52,24 @@ async function publish(payload) {
     `---\n\n${markdown.trim()}\n`;
 
   const files = [
-    { path: CONTENT_PATH.replace("{slug}", slug), contentBase64: Buffer.from(content, "utf8").toString("base64") },
+    { path: config.contentPath.replace("{slug}", slug), contentBase64: Buffer.from(content, "utf8").toString("base64") },
   ];
 
   for (const img of images) {
     const resized = await sharp(Buffer.from(img.data, "base64"))
-      .resize({ width: BLOG_WIDTH, withoutEnlargement: true })
-      .webp({ quality: BLOG_QUALITY })
+      .resize({ width: config.BLOG_WIDTH, withoutEnlargement: true })
+      .webp({ quality: config.BLOG_QUALITY })
       .toBuffer();
     files.push({
-      path: ASSET_PATH.replace("{name}", img.name).replace("{slug}", slug),
+      path: config.assetPath.replace("{name}", img.name).replace("{slug}", slug),
       contentBase64: resized.toString("base64"),
     });
   }
 
   // The document itself, next to the article — the source of truth a revision reads.
-  if (META_PATH && meta) {
+  if (config.metaPath && meta) {
     files.push({
-      path: META_PATH.replace("{slug}", slug),
+      path: config.metaPath.replace("{slug}", slug),
       // Patch the slug so blogagent.yaml names the directory it actually lives in.
       contentBase64: Buffer.from(stringify({ ...meta, slug }, { lineWidth: 80 }), "utf8").toString("base64"),
     });
@@ -114,20 +100,20 @@ async function publish(payload) {
   }
 
   // freeSlug() already guaranteed this branch is free.
-  await commitFiles(gh, { branch, baseBranch: BASE_BRANCH, files, message: title, neu: true });
+  await commitFiles(gh, { branch, baseBranch: config.baseBranch, files, message: title, neu: true });
 
   const pull = await gh.createPull({
     title,
     head: branch,
-    base: BASE_BRANCH,
+    base: config.baseBranch,
     body: `${description}\n`,
   });
-  await gh.addLabels(pull.number, [LABEL]);
+  await gh.addLabels(pull.number, [config.label]);
 
   await notify(`📄 PR #${pull.number} ready: ${title}\n${pull.html_url}`);
   return {
     status: 201,
-    body: { publication_ref: formatRef(OWNER, NAME, pull.number), url: pull.html_url },
+    body: { publication_ref: formatRef(config.owner, config.name, pull.number), url: pull.html_url },
   };
 }
 
@@ -140,7 +126,7 @@ async function slugTaken(slug) {
     if (err.status !== 404) throw err;
   }
   try {
-    await gh.getContent(CONTENT_PATH.replace("{slug}", slug), BASE_BRANCH);
+    await gh.getContent(config.contentPath.replace("{slug}", slug), config.baseBranch);
     return true; // already published on the base branch
   } catch (err) {
     if (err.status !== 404) throw err;
@@ -161,7 +147,7 @@ async function freeSlug(base) {
 
 /** Every file under an article's old directory on the branch — deleted on a slug rename. */
 async function oldArticleFiles(oldSlug, ref) {
-  const dir = path.posix.dirname(CONTENT_PATH.replace("{slug}", oldSlug));
+  const dir = path.posix.dirname(config.contentPath.replace("{slug}", oldSlug));
   const entries = await gh.listDir(dir, ref).catch(() => []);
   return (Array.isArray(entries) ? entries : []).filter((e) => e.type === "file").map((e) => e.path);
 }
@@ -186,6 +172,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`[sink-github] :${PORT} → ${REPO}@${BASE_BRANCH}`);
+server.listen(config.port, "127.0.0.1", () => {
+  console.log(`[sink-github] :${config.port} → ${config.repo}@${config.baseBranch}`);
 });

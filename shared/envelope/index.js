@@ -45,6 +45,28 @@ export function makeEnvelope({ source, source_ref, text, media = [], revises = n
 }
 
 /**
+ * Posts an envelope to the newsroom and returns the pitch id it assigned.
+ * Every source normalises to an envelope and then hands it on through here —
+ * the one place the source→newsroom transport lives. Validates first, so a
+ * malformed envelope fails fast at the source instead of after a wasted round-trip
+ * (the receiver still validates too — this is a guard, not the authority). Throws a
+ * legible error on a non-2xx (the newsroom's `errors`, else the status text) so the
+ * caller decides whether to retry or drop.
+ */
+export async function forwardEnvelope(envelope, targetUrl) {
+  const invalid = validateEnvelope(envelope);
+  if (invalid.length) throw new Error(invalid.join("; "));
+  const response = await fetch(targetUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(envelope),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error((body.errors ?? [response.statusText]).join("; "));
+  return body.id;
+}
+
+/**
  * Validates an incoming envelope. Returns a list of errors —
  * empty means valid. Does not throw, so the caller can respond with 400.
  */

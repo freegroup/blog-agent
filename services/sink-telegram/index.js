@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import http from "node:http";
 import sharp from "sharp";
-import { loadSettings, section } from "@blogagent/config";
 import { connectOne } from "@blogagent/mcp";
+import { config } from "./config.js";
 import { composeMessage, planDelivery } from "./message.js";
 
 /**
@@ -20,14 +20,7 @@ import { composeMessage, planDelivery } from "./message.js";
  * It is NOT wired into the chat hub — it neither reads nor writes the conversation
  * history. It just publishes to the chat.
  */
-const cfg = section(loadSettings(), "sink-telegram");
-// Required, no default — a misconfigured port must fail loudly.
-const PORT = cfg.num("port");
-
-const telegram = await connectOne(cfg.str("mcp", "node services/mcp-telegram/index.js"), "sink-telegram");
-
-// Telegram accepts up to 10 photos in one media group.
-const MAX_PHOTOS = 10;
+const telegram = await connectOne(config.mcp, "sink-telegram");
 
 /** Convert one WebP (base64) to JPEG (base64) — Telegram rejects WebP as a photo. */
 async function toJpeg(base64) {
@@ -43,7 +36,7 @@ async function publish(payload) {
   // whole delivery.
   const photos = (
     await Promise.all(
-      images.slice(0, MAX_PHOTOS).map(async (img) => {
+      images.slice(0, config.MAX_PHOTOS).map(async (img) => {
         try {
           return { name: (img.name ?? "foto").replace(/\.webp$/i, ".jpg"), data: await toJpeg(img.data) };
         } catch (err) {
@@ -93,7 +86,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, "127.0.0.1", () => console.log(`[sink-telegram] :${PORT}`));
+server.listen(config.port, "127.0.0.1", () => console.log(`[sink-telegram] :${config.port}`));
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {

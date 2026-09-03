@@ -2,9 +2,9 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { secret } from "@blogagent/config";
 import { fetchWithRetry } from "@blogagent/http";
 import { postMessage } from "@blogagent/chat";
+import { config, assertSecrets } from "./config.js";
 
 /**
  * The only place the Telegram token lives.
@@ -22,14 +22,11 @@ import { postMessage } from "@blogagent/chat";
  * Important: read_messages must be called by exactly ONE process.
  * Two pollers with the same token get a 409 Conflict from Telegram.
  */
-const TOKEN = secret("TELEGRAM_BOT_TOKEN");
-const CHAT_ID = secret("TELEGRAM_CHAT_ID");
-const api = `https://api.telegram.org/bot${TOKEN}`;
-const files = `https://api.telegram.org/file/bot${TOKEN}`;
+assertSecrets();
 
 async function call(method, params = {}) {
   const response = await fetchWithRetry(
-    `${api}/${method}`,
+    `${config.api}/${method}`,
     {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -47,7 +44,7 @@ async function call(method, params = {}) {
 // from the FormData itself; setting it by hand would break the boundary.
 async function callForm(method, form) {
   const response = await fetchWithRetry(
-    `${api}/${method}`,
+    `${config.api}/${method}`,
     { method: "POST", body: form },
     { label: `Telegram ${method}` },
   );
@@ -76,7 +73,7 @@ server.registerTool(
     const updates = await call("getUpdates", { offset, timeout, allowed_updates: ["message"] });
 
     const messages = updates
-      .filter((u) => u.message && String(u.message.chat.id) === CHAT_ID)
+      .filter((u) => u.message && String(u.message.chat.id) === config.chatId)
       .map((u) => ({
         update_id: u.update_id,
         message_id: u.message.message_id,
@@ -106,7 +103,7 @@ server.registerTool(
   },
   async ({ file_id }) => {
     const { file_path } = await call("getFile", { file_id });
-    const response = await fetchWithRetry(`${files}/${file_path}`, {}, { label: `Telegram download ${file_path}` });
+    const response = await fetchWithRetry(`${config.files}/${file_path}`, {}, { label: `Telegram download ${file_path}` });
     if (!response.ok) throw new Error(`file ${file_path}: ${response.status}`);
     const bytes = Buffer.from(await response.arrayBuffer());
     return { content: [{ type: "text", text: JSON.stringify({ data: bytes.toString("base64"), bytes: bytes.length }) }] };
@@ -123,7 +120,7 @@ server.registerTool(
     inputSchema: { text: z.string().min(1) },
   },
   async ({ text }) => {
-    await call("sendMessage", { chat_id: CHAT_ID, text, disable_web_page_preview: false });
+    await call("sendMessage", { chat_id: config.chatId, text, disable_web_page_preview: false });
     // Record it in the chat history so every outbound message lands there through the
     // one bridge. Best-effort: the message already reached the user, so a chat-history
     // outage must not turn a delivered message into a tool error.
@@ -153,7 +150,7 @@ server.registerTool(
   },
   async ({ photos, caption }) => {
     const form = new FormData();
-    form.set("chat_id", CHAT_ID);
+    form.set("chat_id", config.chatId);
     const parts = photos.map((p, i) => ({
       field: `file${i}`,
       name: p.name ?? `foto-${i + 1}.jpg`,

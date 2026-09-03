@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { loadSettings, section } from "@blogagent/config";
-import { makeEnvelope } from "@blogagent/envelope";
+import { makeEnvelope, forwardEnvelope } from "@blogagent/envelope";
 import { createStt } from "@blogagent/stt";
 import { createLlm } from "@blogagent/llm";
 import { tidySentence } from "@blogagent/tidy";
 import { connectOne } from "@blogagent/mcp";
 import { postMessage } from "@blogagent/chat";
+import { config } from "./config.js";
 
 /**
  * Accepts photo, text, or voice message and pitches to the newsroom.
@@ -19,18 +19,9 @@ import { postMessage } from "@blogagent/chat";
  * back into the chat, so the sender can proofread what actually arrived. The final
  * result — the PR link — still comes later from the sink, not here.
  */
-const settings = loadSettings();
-const cfg = section(settings, "source-telegram");
-const POLL_S = cfg.num("poll_seconds", 5);
-// Where a fresh pitch goes next. Required, and normally the research filter
-// (which enriches and forwards to the newsroom) — but it is just a URL, so this
-// source can also point straight at the newsroom, or at any other filter.
-const OUT = cfg.str("out");
-
-const stt = await createStt(section(settings, "stt"));
-// Which model tidies the request is a settings choice, like every other LLM use.
-const llm = await createLlm(section(settings, `llm-profiles.${cfg.str("llm")}`));
-const telegram = await connectOne(cfg.str("mcp", "node services/mcp-telegram/index.js"), "source-telegram");
+const stt = await createStt(config.stt);
+const llm = await createLlm(config.llm);
+const telegram = await connectOne(config.mcp, "source-telegram");
 
 async function toEnvelope(msg) {
   const media = [];
@@ -99,17 +90,6 @@ async function acknowledge(request) {
   }
 }
 
-async function pitch(envelope) {
-  const response = await fetch(OUT, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(envelope),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error((body.errors ?? [response.statusText]).join("; "));
-  return body.id;
-}
-
 let offset = 0;
 
 async function poll() {
@@ -121,7 +101,7 @@ async function poll() {
   for (const msg of messages) {
     const result = await toEnvelope(msg);
     if (!result) continue;
-    const id = await pitch(result.envelope);
+    const id = await forwardEnvelope(result.envelope, config.out);
     // Record the user's (tidied) message in the chat history, tied to the pitch it
     // became. Inbound stays here — mcp-telegram never sees the transcript or the id.
     await postMessage({
@@ -141,7 +121,7 @@ async function poll() {
   offset = next_offset;
 }
 
-console.log(`[source-telegram] long-polling → ${OUT}`);
+console.log(`[source-telegram] long-polling → ${config.out}`);
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
@@ -155,6 +135,6 @@ while (true) {
     await poll();
   } catch (err) {
     console.error(`[source-telegram] ${err.message}`);
-    await new Promise((r) => setTimeout(r, POLL_S * 1000));
+    await new Promise((r) => setTimeout(r, config.pollMs));
   }
 }

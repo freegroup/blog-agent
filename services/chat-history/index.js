@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import http from "node:http";
-import { loadSettings, section } from "@blogagent/config";
+import { config } from "./config.js";
 import { makeStore } from "./store.js";
 
 /**
@@ -15,11 +15,7 @@ import { makeStore } from "./store.js";
  *
  * Storage is one JSON line per message; nothing here parses or interprets them.
  */
-const cfg = section(loadSettings(), "chat-history");
-const PORT = cfg.num("port", 5090);
-const DIR = cfg.str("dir", "./var/chat-history");
-const MAX_CONTEXT = cfg.num("max_context", 50);
-const { append, recent } = makeStore(DIR, MAX_CONTEXT);
+const { append, recent } = makeStore(config.dir, config.maxContext);
 
 /** SSE responses currently listening. */
 const subscribers = new Set();
@@ -39,7 +35,7 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(status, { "content-type": "application/json" });
     res.end(JSON.stringify(body));
   };
-  const url = new URL(req.url, `http://localhost:${PORT}`);
+  const url = new URL(req.url, `http://localhost:${config.port}`);
 
   // Ingest: a producer records a message. Persist, then broadcast.
   if (req.method === "POST" && url.pathname === "/messages") {
@@ -87,6 +83,6 @@ const server = http.createServer(async (req, res) => {
   reply(404, { errors: ["POST /messages | GET /messages | GET /events"] });
 });
 
-server.listen(PORT, "127.0.0.1", () => {
-  console.log(`[chat-history] :${PORT} → ${DIR} (context: ${MAX_CONTEXT})`);
+server.listen(config.port, "127.0.0.1", () => {
+  console.log(`[chat-history] :${config.port} → ${config.dir} (context: ${config.maxContext})`);
 });

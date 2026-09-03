@@ -1,5 +1,5 @@
 import { parse } from "yaml";
-import { makeEnvelope, formatRef } from "@blogagent/envelope";
+import { makeEnvelope, formatRef, forwardEnvelope } from "@blogagent/envelope";
 
 /**
  * The return channel's logic. Polls PRs with the label and submits owner comments
@@ -11,8 +11,8 @@ import { makeEnvelope, formatRef } from "@blogagent/envelope";
  * immediately up to date after any restart.
  *
  * Everything here is import-testable: `decide` is pure, and `makePoll` closes over
- * its dependencies (a GitHub client, `fetch`, settings) so a test can drive it with
- * fakes. index.js only reads settings and runs the loop.
+ * its dependencies (a GitHub client, settings) so a test can drive it with fakes.
+ * index.js only reads settings and runs the loop.
  */
 
 /**
@@ -41,9 +41,9 @@ export function decide({ comments, commits, now, ackText, owner, staleMs }) {
 /**
  * Build the poll routine bound to its dependencies. `gh` is a GitHub client;
  * `out` is the newsroom's pitch URL; the rest are the configured values decide()
- * needs. `fetch` is injectable so the forward is testable without a network.
+ * needs.
  */
-export function makePoll({ gh, out, ackText, ownerLogin, staleMs, label, owner, name, fetch = globalThis.fetch }) {
+export function makePoll({ gh, out, ackText, ownerLogin, staleMs, label, owner, name }) {
   /**
    * Reads the published article back from the PR branch: `blogagent.yaml` — the
    * document's own truth (slug, plot, image_names, …) — and its images. No slug is
@@ -95,12 +95,7 @@ export function makePoll({ gh, out, ackText, ownerLogin, staleMs, label, owner, 
       review,
     });
 
-    const response = await fetch(out, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(envelope),
-    });
-    if (!response.ok) throw new Error(`newsroom ${response.status}: ${await response.text()}`);
+    await forwardEnvelope(envelope, out);
 
     if (decision.action === "handoff") await gh.addComment(pull.number, ackText);
     console.log(`[source-github] PR #${pull.number} ${decision.action}`);

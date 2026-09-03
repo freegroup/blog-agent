@@ -3,7 +3,7 @@ import http from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import { loadSettings, section } from "@blogagent/config";
+import { config } from "./config.js";
 import { validatePublish, _intern } from "@blogagent/sink-github/validate.js";
 
 /**
@@ -13,18 +13,12 @@ import { validatePublish, _intern } from "@blogagent/sink-github/validate.js";
  * Markdown with images in a local folder. No secrets, no network, no repo —
  * and it proves that a channel really is just a different sink URL in the briefing.
  */
-const cfg = section(loadSettings(), "sink-file");
-const PORT = cfg.num("port", 5082);
-const TARGET_DIR = cfg.str("target_dir", "./var/sink");
-const WIDTH = cfg.num("image_width", 1600);
-const MAX_IMAGE_BYTES = cfg.num("max_image_bytes", 2 * 1024 * 1024);
-
 async function publish(payload) {
-  const errors = validatePublish(payload, { maxBildBytes: MAX_IMAGE_BYTES });
+  const errors = validatePublish(payload, { maxBildBytes: config.maxImageBytes });
   if (errors.length) return { status: 400, body: { errors } };
 
   const { slug, title, description, markdown, images = [], debug_images = [] } = payload;
-  const dir = path.join(TARGET_DIR, slug);
+  const dir = path.join(config.targetDir, slug);
   mkdirSync(dir, { recursive: true });
 
   // Frontmatter is target form, not payload — the sink sets it.
@@ -37,7 +31,7 @@ async function publish(payload) {
 
   for (const img of images) {
     const resized = await sharp(Buffer.from(img.data, "base64"))
-      .resize({ width: WIDTH, withoutEnlargement: true })
+      .resize({ width: config.imageWidth, withoutEnlargement: true })
       .webp({ quality: 82 })
       .toBuffer();
     writeFileSync(path.join(dir, img.name), resized);
@@ -51,7 +45,7 @@ async function publish(payload) {
   for (const img of debug_images) {
     if (!_intern.IMAGE_NAME.test(img.name)) continue;
     const resized = await sharp(Buffer.from(img.data, "base64"))
-      .resize({ width: WIDTH, withoutEnlargement: true })
+      .resize({ width: config.imageWidth, withoutEnlargement: true })
       .webp({ quality: 82 })
       .toBuffer();
     const debugDir = path.join(dir, "_debug");
@@ -87,4 +81,4 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, "127.0.0.1", () => console.log(`[sink-file] :${PORT} → ${TARGET_DIR}`));
+server.listen(config.port, "127.0.0.1", () => console.log(`[sink-file] :${config.port} → ${config.targetDir}`));

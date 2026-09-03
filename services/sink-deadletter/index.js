@@ -2,8 +2,8 @@
 import http from "node:http";
 import path from "node:path";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { loadSettings, section } from "@blogagent/config";
 import { connectOne } from "@blogagent/mcp";
+import { config } from "./config.js";
 import { deadletterRecord } from "./record.js";
 
 /**
@@ -16,12 +16,7 @@ import { deadletterRecord } from "./record.js";
  * Two channels, independent: a Telegram notification (seen at once, scrolls away)
  * and a Markdown record under `dir` (stays, grep-able) for later debugging.
  */
-const settings = loadSettings();
-const cfg = section(settings, "sink-deadletter");
-const PORT = cfg.num("port", 5083);
-const DIR = cfg.str("dir", "./var/deadletter");
-
-const telegram = await connectOne(cfg.str("mcp", "node services/mcp-telegram/index.js"), "sink-deadletter");
+const telegram = await connectOne(config.mcp, "sink-deadletter");
 
 const server = http.createServer(async (req, res) => {
   const reply = (status, body) => {
@@ -44,8 +39,8 @@ const server = http.createServer(async (req, res) => {
     let file = null;
     try {
       const { filename, content } = deadletterRecord(pitch);
-      mkdirSync(DIR, { recursive: true });
-      file = path.join(DIR, filename);
+      mkdirSync(config.dir, { recursive: true });
+      file = path.join(config.dir, filename);
       writeFileSync(file, content);
     } catch (err) {
       console.error(`[sink-deadletter] could not write record: ${err.message}`);
@@ -69,7 +64,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, "127.0.0.1", () => console.log(`[sink-deadletter] :${PORT}`));
+server.listen(config.port, "127.0.0.1", () => console.log(`[sink-deadletter] :${config.port}`));
 
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
