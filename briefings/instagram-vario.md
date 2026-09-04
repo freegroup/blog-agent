@@ -46,7 +46,9 @@ es geht*: bei einer Kabelquerschnitt-Frage die echte Verkabelung/Klemme/das Baut
 bei Solar das Panel auf dem Dach, bei einer Ankündigung die Szene, um die es geht. Ein
 schöner Van im Sonnenuntergang **ohne** Bezug zum Thema ist zu wenig — attraktiv **und**
 on-topic, und im Zweifel geht der Themenbezug vor. Ein echtes, glaubwürdiges Foto, kein
-künstlicher KI-Look, kein Text und kein Logo im Bild.
+künstlicher KI-Look, kein Text und kein Logo im Bild. **Insbesondere KEINE Schaltpläne,
+Schaltbilder oder Verkabelungs-/Anschluss-Zeichnungen** — die Bild-KI stellt sie ohnehin
+falsch dar; zeig stattdessen die reale Szene oder das echte Bauteil als Foto.
 
 Bringt der Nutzer ein eigenes Foto mit (im Platzhalter als *User-Foto* markiert),
 dann **schreib es in Instagram-Stil um, statt ein neues zu erfinden**: gib im
