@@ -56,6 +56,7 @@ test("static UPPERCASE constants are baked in, not read from settings", () => {
   assert.deepEqual(c.SCOPES, ["instagram_business_basic", "instagram_business_content_publish"]);
   assert.equal(c.ENV_PATH, ".env");
   assert.equal(c.CAPTION_MAX, 2200);
+  assert.equal(c.CAROUSEL_MAX, 10);
   assert.equal(c.REFRESH_THRESHOLD_S, 7 * 24 * 3600);
 });
 

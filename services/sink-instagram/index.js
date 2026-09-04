@@ -13,9 +13,10 @@ import { upsertEnvVar } from "./token-store.js";
  * Uses the "Instagram API with Instagram Login" (the current, Facebook-page-free
  * flavor). Same `POST /publish` contract as the other sinks — a briefing names it
  * as a target-sink and the newsroom posts the finished article here. The post
- * carries the article title + description as the caption and its first image,
- * uploaded to the `instagram-assets` branch of the configured GitHub repo so
- * Instagram can fetch it via a public URL (Instagram does not accept inline base64).
+ * carries the article title + description as the caption and its image(s) — one photo,
+ * or a swipeable carousel when the article brings more than one — each uploaded to the
+ * `instagram-assets` branch of the configured GitHub repo so Instagram can fetch it via
+ * a public URL (Instagram does not accept inline base64).
  *
  * Two ways to authorize:
  *   1. Quick start (no app secret): generate an access token in the Instagram app
@@ -151,8 +152,10 @@ async function publish(payload) {
   // Which Instagram profile: named by the briefing, else the default account.
   const account = briefing?.account || null;
 
-  const image = images[0];
-  if (!image) return { status: 400, body: { errors: ["an Instagram post needs an image — none in this article"] } };
+  if (!images.length) return { status: 400, body: { errors: ["an Instagram post needs an image — none in this article"] } };
+  // One image posts as a single photo; two or more become a swipeable carousel. The
+  // briefings keep the editorial count to 1–2; this is the platform-limit safety net.
+  const chosen = images.slice(0, config.CAROUSEL_MAX);
 
   // Feed captions can't carry a clickable link — end with a "link in bio" CTA instead.
   const caption = buildCaption(title, description, config.captionCta);
@@ -161,30 +164,51 @@ async function publish(payload) {
     console.log(`[sink-instagram] DRY RUN (account ${label(account)}) — would post:`);
     console.log(`  slug:    ${slug ?? "(none)"}`);
     console.log(`  caption: ${caption.slice(0, 120)}${caption.length > 120 ? "…" : ""}`);
-    console.log(`  images:  ${images.map((i) => i.name ?? "?").join(", ")}`);
+    console.log(`  images:  ${chosen.map((i) => i.name ?? "?").join(", ")}${chosen.length > 1 ? " (carousel)" : ""}`);
     return { status: 201, body: { publication_ref: "instagram:dry-run", dry_run: true } };
   }
 
   const token = await validToken(account);
   const igUserId = await ensureUserId(account, token);
-  const jpegBuffer = await toJpegBuffer(getImageData(image));
-  const filename = (image.name ?? "foto-1").replace(/\.[^.]+$/, "") + ".jpg";
 
-  const imageUrl = await uploadAsset({
-    apiUrl: config.GITHUB_API,
-    repo: config.githubRepo,
-    token: config.githubToken,
-    slug: slug ?? `post-${Date.now()}`,
-    filename,
-    branch: config.githubBranch,
-    jpegBuffer,
-  });
+  // Every image goes to the public asset repo first — Instagram fetches them by URL.
+  const imageUrls = [];
+  for (const [i, image] of chosen.entries()) {
+    const jpegBuffer = await toJpegBuffer(getImageData(image));
+    const filename = (image.name ?? `foto-${i + 1}`).replace(/\.[^.]+$/, "") + ".jpg";
+    imageUrls.push(
+      await uploadAsset({
+        apiUrl: config.GITHUB_API,
+        repo: config.githubRepo,
+        token: config.githubToken,
+        slug: slug ?? `post-${Date.now()}`,
+        filename,
+        branch: config.githubBranch,
+        jpegBuffer,
+      }),
+    );
+  }
 
-  const creationId = await createContainer({ apiUrl: config.apiUrl, userId: igUserId, token, imageUrl, caption, captionMax: config.CAPTION_MAX });
-  await waitForContainerReady({ apiUrl: config.apiUrl, containerId: creationId, token });
-  const mediaId = await publishContainer({ apiUrl: config.apiUrl, userId: igUserId, token, creationId });
+  const ig = { apiUrl: config.apiUrl, userId: igUserId, token };
+  let creationId;
+  if (imageUrls.length === 1) {
+    // Single image: one container carries the caption directly.
+    creationId = await createContainer({ ...ig, imageUrl: imageUrls[0], caption, captionMax: config.CAPTION_MAX });
+    await waitForContainerReady({ apiUrl: config.apiUrl, containerId: creationId, token });
+  } else {
+    // Carousel: an item container per slide (no caption), then a parent that carries it.
+    const childIds = [];
+    for (const imageUrl of imageUrls) {
+      const itemId = await createContainer({ ...ig, imageUrl, isCarouselItem: true });
+      await waitForContainerReady({ apiUrl: config.apiUrl, containerId: itemId, token });
+      childIds.push(itemId);
+    }
+    creationId = await createContainer({ ...ig, caption, captionMax: config.CAPTION_MAX, children: childIds });
+    await waitForContainerReady({ apiUrl: config.apiUrl, containerId: creationId, token });
+  }
+  const mediaId = await publishContainer({ ...ig, creationId });
 
-  console.log(`[sink-instagram] posted ${slug ?? "(no slug)"} → media ${mediaId} (account ${label(account)})`);
+  console.log(`[sink-instagram] posted ${slug ?? "(no slug)"} → media ${mediaId} (${chosen.length} image(s), account ${label(account)})`);
   return { status: 201, body: { publication_ref: `instagram:${mediaId}` } };
 }
 

@@ -128,12 +128,28 @@ export async function getUserId({ apiUrl, token }) {
 }
 
 /**
- * Step 1: create a media container for the image. Returns the creation_id.
- * The image must be at a publicly accessible URL.
+ * Step 1: create a media container. Returns its creation_id.
+ *
+ * Three shapes, one endpoint:
+ *   - single image post → `{ image_url, caption }`
+ *   - carousel item     → `{ image_url, is_carousel_item: true }` (no caption — that
+ *                          belongs on the parent, not the individual slides)
+ *   - carousel parent   → `{ media_type: "CAROUSEL", children, caption }`
+ *
+ * Each image must be at a publicly accessible URL.
  */
-export async function createContainer({ apiUrl, userId, token, imageUrl, caption, captionMax }) {
-  const body = { image_url: imageUrl };
-  if (caption?.trim()) body.caption = caption.trim().slice(0, captionMax);
+export async function createContainer({ apiUrl, userId, token, imageUrl, caption, captionMax, isCarouselItem, children }) {
+  const body = {};
+  if (children) {
+    body.media_type = "CAROUSEL";
+    body.children = children.join(",");
+  } else {
+    body.image_url = imageUrl;
+    if (isCarouselItem) body.is_carousel_item = true;
+  }
+  // Caption rides on the published media — the single image or the carousel parent —
+  // never on an individual carousel item.
+  if (!isCarouselItem && caption?.trim()) body.caption = caption.trim().slice(0, captionMax);
   const json = await graphPost(apiUrl, `/${userId}/media`, token, body);
   return json.id; // creation_id
 }

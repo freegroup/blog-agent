@@ -30,9 +30,11 @@ die der User gar nicht verlangt hat.
 
 ## Bild
 
-**Genau 1 Bild** — pflicht. Setze es als Platzhalter
-`![Bildunterschrift](foto-1.webp)` an den Anfang des Texts. Das Bild wird separat
-hochgeladen; der Platzhalter erscheint im Post nicht.
+**1–2 Bilder.** Setze sie als Platzhalter `![Bildunterschrift](foto-1.webp)` (und bei
+zweien zusätzlich `![Bildunterschrift](foto-2.webp)`) an den Anfang des Texts. Die
+Bilder werden separat hochgeladen; die Platzhalter erscheinen im Post nicht. Zwei
+Bilder ergeben ein **Karussell** zum Swipen — nimm ein zweites nur, wenn es wirklich
+etwas beiträgt (anderer Blickwinkel, ein Detail, Vorher/Nachher); sonst reicht eins.
 
 Quadrat (1:1) oder Hochformat (4:5) funktioniert auf Instagram besser als
 Querformat — das berücksichtigt der `illustrate`-Schritt.

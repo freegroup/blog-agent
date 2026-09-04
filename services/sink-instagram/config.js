@@ -45,6 +45,9 @@ export function buildConfig(settings, env) {
     ENV_PATH: ".env",
     // Instagram caption limit (chars visible before the "more" fold at ~125 chars).
     CAPTION_MAX: 2200,
+    // Max images per post — one posts as a single image, more as a carousel. This is
+    // Instagram's platform limit; the briefings keep the editorial count to 1–2.
+    CAROUSEL_MAX: 10,
     // Refresh the long-lived token when fewer than this many seconds remain (7 days).
     REFRESH_THRESHOLD_S: 7 * 24 * 3600,
     // App id/secret are only needed for the full OAuth bootstrap; the quick-start path
