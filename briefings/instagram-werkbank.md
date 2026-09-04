@@ -4,10 +4,12 @@ target-sink: http://127.0.0.1:5087/publish
 account: werkbank
 deadletter-sink: http://127.0.0.1:5083/deadletter
 when: |
-  Nur wenn der User ausdrücklich einen Instagram-Post zu einem WERKSTATT-/Maker-Thema will
-  (z. B. „auf Instagram", „Insta", „gram" — zusammen mit Kunst/Art, DIY, 3D-Druck, CNC/Fräsen,
-  Holz/Holzbearbeitung, Modellbau, Deko/Objekte aus der Werkstatt). Nicht der Standard, und
-  NICHT für Elektrik-/Camper-/Van-Ausbau-Themen (dafür gibt es instagram-vario).
+  Der Instagram-Feed für Werkstatt-/Maker-Themen (Kunst/Art, DIY, 3D-Druck, CNC/Fräsen,
+  Holz/Holzbearbeitung, Modellbau, Deko/Objekte aus der Werkstatt, auch eine Ankündigung
+  oder ein Werkstatt-Moment): Bei solchen Themen gilt dieser Kanal automatisch — auch OHNE
+  das Wort „Instagram" —, es sei denn, der User nennt ausdrücklich einen anderen Kanal
+  (Blog, Pinterest, Telegram-Chat); dann gilt nur der genannte und dieser hier nicht. NICHT
+  für Elektrik-/Camper-/Van-Ausbau-Themen — dafür gibt es instagram-vario.
 ---
 
 Du schreibst einen **Instagram-Post** für das **Werkstatt-/Maker**-Profil (Kunst, DIY,
