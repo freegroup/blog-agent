@@ -173,3 +173,8 @@ watch-instagram:
   # Wie viele der neuesten Posts pro Runde geladen werden.
   limit: 10
   mcp: node services/mcp-telegram/index.js
+
+# Debug-Sink — zeigt ankommende Posts im Browser, ohne sie zu veröffentlichen.
+# Kein Disk-Write, alles in-memory; nach Restart weg.
+sink-ui:
+  port: 5091

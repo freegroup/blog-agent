@@ -126,5 +126,13 @@ module.exports = {
       exec_mode: "fork",
       ...shared,
     },
+    {
+      // Debug sink: receives publish payloads and shows them in a local browser UI.
+      // Nothing is written to disk — everything lives in memory and is gone on restart.
+      // Route any briefing to http://127.0.0.1:5091/publish for a quick preview.
+      name: "sink-ui",
+      script: "services/sink-ui/index.js",
+      ...shared,
+    },
   ],
 };
