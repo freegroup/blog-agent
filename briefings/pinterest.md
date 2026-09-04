@@ -7,6 +7,8 @@ when: |
   Nur wenn der User ausdrücklich einen Pinterest-Pin will
   (z. B. „auf Pinterest", „pinnen", „Pinterest-Version").
   Nicht der Standard.
+  NIEMALS wenn der User „debug", „als debug" oder „debug-UI" erwähnt —
+  dann gilt ausschließlich debug-ui, dieser Kanal nicht.
 ---
 
 Du schreibst einen **Pinterest-Pin** — einen kurzen, inspirierenden Text, der Lust

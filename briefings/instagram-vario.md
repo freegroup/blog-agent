@@ -11,6 +11,8 @@ when: |
   ausdrücklich einen anderen Kanal (Blog, Pinterest, Telegram-Chat); dann gilt nur der
   genannte und dieser hier nicht. NICHT für Werkstatt-/Maker-Themen (Kunst, DIY, 3D-Druck,
   CNC/Fräsen, Holz) — dafür gibt es instagram-werkbank.
+  NIEMALS wenn der User „debug", „als debug" oder „debug-UI" erwähnt —
+  dann gilt ausschließlich debug-ui, dieser Kanal nicht.
 ---
 
 Du schreibst einen **Instagram-Post** für das **Camper-/Vanlife**-Profil — einen

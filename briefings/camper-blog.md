@@ -11,6 +11,8 @@ when: |
   anderen Kanal (Instagram, Pinterest, Telegram-Chat); dann gilt nur
   der genannte und dieser hier nicht. Bei Themen ohne Elektrik-/Camper-
   Bezug gilt dieser Kanal ohnehin nicht.
+  NIEMALS wenn der User „debug", „als debug" oder „debug-UI" erwähnt —
+  dann gilt ausschließlich debug-ui, dieser Kanal nicht.
 ---
 
 ## Wer liest das

@@ -6,6 +6,8 @@ when: |
   Nur wenn der User ausdrücklich eine Fassung für den Telegram-Chat will
   (z. B. „schick mir das als Nachricht", "in den Chat", „Telegram-Version").
   Nicht der Standard.
+  NIEMALS wenn der User „debug", „als debug" oder „debug-UI" erwähnt —
+  dann gilt ausschließlich debug-ui, dieser Kanal nicht.
 ---
 
 Du schreibst eine **kurze Chat-Fassung** für Telegram — kein Blog-Artikel, sondern

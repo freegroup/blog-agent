@@ -10,6 +10,8 @@ when: |
   das Wort „Instagram" —, es sei denn, der User nennt ausdrücklich einen anderen Kanal
   (Blog, Pinterest, Telegram-Chat); dann gilt nur der genannte und dieser hier nicht. NICHT
   für Elektrik-/Camper-/Van-Ausbau-Themen — dafür gibt es instagram-vario.
+  NIEMALS wenn der User „debug", „als debug" oder „debug-UI" erwähnt —
+  dann gilt ausschließlich debug-ui, dieser Kanal nicht.
 ---
 
 Du schreibst einen **Instagram-Post** für das **Werkstatt-/Maker**-Profil (Kunst, DIY,
