@@ -2,6 +2,7 @@
 import http from "node:http";
 import sharp from "sharp";
 import { connectOne } from "@blogagent/mcp";
+import { getImageData } from "@blogagent/image";
 import { config } from "./config.js";
 import { composeMessage, planDelivery } from "./message.js";
 
@@ -38,7 +39,7 @@ async function publish(payload) {
     await Promise.all(
       images.slice(0, config.MAX_PHOTOS).map(async (img) => {
         try {
-          return { name: (img.name ?? "foto").replace(/\.webp$/i, ".jpg"), data: await toJpeg(img.data) };
+          return { name: (img.name ?? "foto").replace(/\.webp$/i, ".jpg"), data: await toJpeg(getImageData(img)) };
         } catch (err) {
           console.error(`[sink-telegram] image ${img.name} skipped: ${err.message}`);
           return null;

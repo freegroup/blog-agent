@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import http from "node:http";
 import sharp from "sharp";
+import { getImageData } from "@blogagent/image";
 import { config } from "./config.js";
 import { authUrl, exchangeCode, toLongLived, refreshLongLived, getUserId, createContainer, waitForContainerReady, publishContainer } from "./instagram.js";
 import { uploadAsset } from "./github-assets.js";
@@ -166,7 +167,7 @@ async function publish(payload) {
 
   const token = await validToken(account);
   const igUserId = await ensureUserId(account, token);
-  const jpegBuffer = await toJpegBuffer(image.data);
+  const jpegBuffer = await toJpegBuffer(getImageData(image));
   const filename = (image.name ?? "foto-1").replace(/\.[^.]+$/, "") + ".jpg";
 
   const imageUrl = await uploadAsset({

@@ -1,5 +1,6 @@
 import { parse } from "yaml";
 import { makeEnvelope, formatRef, forwardEnvelope } from "@blogagent/envelope";
+import { buildImageUri } from "@blogagent/image";
 
 /**
  * The return channel's logic. Polls PRs with the label and submits owner comments
@@ -82,7 +83,13 @@ export function makePoll({ gh, out, ackText, rejectText, ownerLogin, staleMs, la
     const media = [];
     for (const n of doc?.image_names ?? []) {
       const bytes = await gh.getContent(`${dir}${n}`, ref);
-      media.push({ kind: "image", mime: "image/webp", data: bytes.toString("base64") });
+      media.push({
+        kind: "image",
+        data: buildImageUri("image/webp", bytes.toString("base64")),
+        // The document already recorded each picture's origin — read it, don't invent it.
+        // A legacy doc without the map predates enrichment: everything in it was a user image.
+        source: doc?.image_sources?.[n] ?? "user",
+      });
     }
     return { doc, media };
   }

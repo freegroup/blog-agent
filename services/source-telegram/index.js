@@ -5,6 +5,7 @@ import { createLlm } from "@blogagent/llm";
 import { tidySentence } from "@blogagent/tidy";
 import { connectOne } from "@blogagent/mcp";
 import { postMessage } from "@blogagent/chat";
+import { buildImageUri } from "@blogagent/image";
 import { config } from "./config.js";
 
 /**
@@ -33,7 +34,8 @@ async function toEnvelope(msg) {
 
   if (msg.photo) {
     const { data } = await telegram.callJson("load_file", { file_id: msg.photo });
-    media.push({ kind: "image", mime: "image/jpeg", data });
+    // A picture the user sent — the origin the whole enrichment story starts from.
+    media.push({ kind: "image", data: buildImageUri("image/jpeg", data), source: "user" });
   }
 
   if (msg.audio) {

@@ -9,6 +9,7 @@ import { TitleStage } from "../pipeline/title.js";
 import { SlugStage } from "../pipeline/slug.js";
 import { pitchText, reviewNote } from "../pipeline/converse.js";
 import { persistable } from "../pipeline/stage.js";
+import { getImageData, buildImageUri } from "@blogagent/image";
 
 /**
  * Fake LLM: answers in sequence. `seen` snapshots each request, because the
@@ -140,7 +141,9 @@ test("illustrate fills a placeholder the article left, and never touches the mar
   const out = await new IllustrateStage().run(doc, ctxWith(fakeLlm([bilds([{ name: "foto-1.webp", prompt: "a wago clamp" }])]), { image }));
   assert.deepEqual(out.images.map((i) => i.name), ["foto-1.webp"]);
   assert.equal(image.calls[0].prompt, "a wago clamp");
-  const meta = await sharp(Buffer.from(out.images[0].data, "base64")).metadata();
+  assert.equal(image.calls[0].image, undefined, "a fresh generation, not image-to-image");
+  assert.equal(out.images[0].source, "ai", "a freshly drawn picture is marked as AI");
+  const meta = await sharp(Buffer.from(getImageData(out.images[0].data), "base64")).metadata();
   assert.equal(meta.format, "webp", "stored as WebP like any pipeline image");
   assert.equal(out.markdown, doc.markdown, "the prose is never rewritten");
 });
@@ -160,6 +163,23 @@ test("illustrate keeps the photo and fills only the extra placeholder", async ()
   assert.deepEqual(out.images.map((i) => i.name), ["foto-1.webp", "foto-2.webp"]);
   assert.equal(out.images[0].data, "USER", "the sender's picture is untouched");
   assert.equal(image.calls.length, 1, "only the missing one is drawn");
+});
+
+test("illustrate enriches a user photo via enrich_from (image-to-image), keeping the original", async () => {
+  const image = fakeImage();
+  const original = buildImageUri("image/jpeg", "VVNFUg==");
+  const doc = DOC({ markdown: "![](foto-1.webp)", images: [{ name: "foto-1.webp", data: original, source: "user" }] });
+  const out = await new IllustrateStage().run(
+    doc,
+    ctxWith(fakeLlm([bilds([{ name: "foto-1.webp", prompt: "brighter, cleaner", enrich_from: "foto-1.webp" }])]), { image }),
+  );
+  assert.equal(image.calls.length, 1, "a present user photo is drawn from, even with nothing missing");
+  assert.equal(image.calls[0].image, original, "the user's picture is handed in as the image-to-image source");
+  const img = out.images[0];
+  assert.equal(img.name, "foto-1.webp");
+  assert.equal(img.source, "ai-enriched");
+  assert.equal(img.data_original, original, "the untouched original rides along for debugging");
+  assert.notEqual(getImageData(img.data), getImageData(original), "the stored bytes are the reworked ones");
 });
 
 test("illustrate is a no-op without an image provider — dead refs stay, no model call", async () => {
@@ -250,6 +270,22 @@ test("persistable strips runtime-only review/revise (blogagent.yaml stays the ar
   assert.equal(meta.review, undefined);
   assert.equal(meta.plot, "P");
   assert.deepEqual(meta.image_names, ["foto-1.webp"]);
+});
+
+test("persistable records each image's source, defaulting a sourceless one to user", () => {
+  const meta = persistable({
+    images: [
+      { name: "foto-1.webp", data: "x", source: "user" },
+      { name: "foto-2.webp", data: "y", source: "ai-enriched" },
+      { name: "foto-3.webp", data: "z" }, // legacy image with no source
+    ],
+  });
+  assert.deepEqual(meta.image_names, ["foto-1.webp", "foto-2.webp", "foto-3.webp"]);
+  assert.deepEqual(meta.image_sources, {
+    "foto-1.webp": "user",
+    "foto-2.webp": "ai-enriched",
+    "foto-3.webp": "user",
+  });
 });
 
 test("plot on a revision sees the review and its old treatment, and may pass it through", async () => {

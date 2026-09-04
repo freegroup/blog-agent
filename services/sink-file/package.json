@@ -6,6 +6,7 @@
   "main": "index.js",
   "dependencies": {
     "@blogagent/config": "*",
+    "@blogagent/image": "*",
     "@blogagent/sink-github": "*",
     "sharp": "^0.34.0"
   }

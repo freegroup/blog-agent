@@ -1,4 +1,4 @@
-import { ImageProvider } from "./index.js";
+import { ImageProvider, getImageData, getImageMimeType } from "./index.js";
 import { whyFetchFailed, fetchWithRetry } from "@blogagent/http";
 
 /**
@@ -21,8 +21,12 @@ export class GoogleImage extends ImageProvider {
     this.apiKey = apiKey;
   }
 
-  async generate({ prompt }) {
+  async generate({ prompt, image }) {
     const url = `${this.baseUrl}/models/${this.model}:generateContent`;
+    // A source image turns text-to-image into image-to-image: the model reworks the
+    // given picture instead of drawing from scratch (how a user photo gets enriched).
+    const reqParts = [{ text: prompt }];
+    if (image) reqParts.push({ inlineData: { mimeType: getImageMimeType(image), data: getImageData(image) } });
     let response;
     try {
       response = await fetchWithRetry(
@@ -36,7 +40,7 @@ export class GoogleImage extends ImageProvider {
           // Force image output: without it the model may answer in text (a
           // refusal or a description), which then surfaces as "no image".
           body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
+            contents: [{ parts: reqParts }],
             generationConfig: { responseModalities: ["IMAGE"] },
           }),
         },

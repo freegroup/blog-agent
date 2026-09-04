@@ -55,6 +55,29 @@ test("generate posts to :generateContent and returns the inline image bytes", as
   assert.equal(result.mime, "image/png");
 });
 
+test("generate attaches a source image as an inline part (image-to-image)", async () => {
+  const calls = [];
+  const fake = async (url, init) => {
+    calls.push({ url, init });
+    return {
+      ok: true,
+      json: async () => ({ candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/webp", data: "T0s=" } }] } }] }),
+    };
+  };
+  const img = new GoogleImage({ baseUrl: "https://api.test", model: "m", apiKey: "k" });
+  const { fetch: realFetch } = globalThis;
+  globalThis.fetch = fake;
+  try {
+    await img.generate({ prompt: "make it brighter", image: "data:image/jpeg;base64,VVNFUg==" });
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  const body = JSON.parse(calls[0].init.body);
+  const parts = body.contents[0].parts;
+  assert.equal(parts[0].text, "make it brighter");
+  assert.deepEqual(parts[1].inlineData, { mimeType: "image/jpeg", data: "VVNFUg==" }, "the data URI is unpacked into mime + bare base64");
+});
+
 test("generate throws when the response carries no image", async () => {
   const img = new GoogleImage({ baseUrl: "https://api.test", model: "m", apiKey: "k" });
   const { fetch: realFetch } = globalThis;

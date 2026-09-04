@@ -8,6 +8,7 @@
     "@blogagent/config": "*",
     "@blogagent/envelope": "*",
     "@blogagent/http": "*",
+    "@blogagent/image": "*",
     "sharp": "^0.34.0",
     "@blogagent/mcp": "*",
     "yaml": "^2.9.0"

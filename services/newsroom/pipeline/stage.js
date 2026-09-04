@@ -12,7 +12,10 @@
  * `article` and `description` is one new file returning `{...doc, markdown: …}`
  * and one new entry in `newsroom.pipeline` — no other stage changes.
  *
- * @typedef {{name:string, data:string}} Image  data = base64 WebP
+ * @typedef {{name:string, data:string, source?:'user'|'ai'|'ai-enriched', data_original?:string}} Image
+ *   `data` is a data URI (WebP), same format as the envelope — read it via `@blogagent/image`.
+ *   `source` is where the picture came from; `data_original` keeps the untouched user image
+ *   on an enriched one (transient, for debugging — not persisted).
  *
  * @typedef {Object} Doc  grows as it flows; every field is written by exactly one stage
  * @property {string} text            the pitch, verbatim
@@ -79,7 +82,14 @@ export class StageError extends Error {
  * base64 has no place in a readable file either — it is left out entirely.
  */
 export function persistable({ images = [], imagesDropped, review, revise, ...rest }) {
-  return { ...rest, image_names: images.map((i) => i.name) };
+  return {
+    ...rest,
+    image_names: images.map((i) => i.name),
+    // Bytes live as asset files; only each picture's origin needs to survive here, so a
+    // revision read back by source-github knows what a picture was (user/ai/ai-enriched)
+    // without inventing it. `data_original` is a debug aid on the live envelope, not state.
+    image_sources: Object.fromEntries(images.map((i) => [i.name, i.source ?? "user"])),
+  };
 }
 
 /** The reverse: a stored document plus freshly resized pictures. */

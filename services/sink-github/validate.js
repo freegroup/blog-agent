@@ -5,6 +5,7 @@
  * and both become file paths. `../../.github/workflows/deploy.yml` is a
  * realistic value, not paranoia.
  */
+import { getImageData } from "@blogagent/image";
 
 const SLUG = /^[a-z0-9][a-z0-9-]{2,60}$/;
 const IMAGE_NAME = /^[a-z0-9][a-z0-9-]{0,60}\.webp$/;
@@ -45,7 +46,7 @@ export function validatePublish(payload, { maxBildBytes }) {
       errors.push(`images[${i}].data missing`);
       continue;
     }
-    const bytes = Buffer.byteLength(img.data, "base64");
+    const bytes = Buffer.byteLength(getImageData(img.data), "base64");
     if (bytes > maxBildBytes) {
       errors.push(`images[${i}] is ${bytes} bytes, limit is ${maxBildBytes}`);
     }

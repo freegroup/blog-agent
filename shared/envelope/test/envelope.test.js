@@ -28,6 +28,16 @@ test("makeEnvelope carries a revision's doc and review", () => {
   assert.equal(validateEnvelope(env).length, 0);
 });
 
+test("validateEnvelope accepts media without a mime field — the mime lives in the data URI", () => {
+  const env = makeEnvelope({
+    source: "telegram",
+    source_ref: "chat:1",
+    text: "",
+    media: [{ kind: "image", data: "data:image/jpeg;base64,VVNFUg==", source: "user" }],
+  });
+  assert.deepEqual(validateEnvelope(env), [], "a self-describing data URI needs no separate mime");
+});
+
 test("validateEnvelope rejects a non-object doc and a non-array review", () => {
   const base = makeEnvelope({ source: "github", source_ref: "pr:1", text: "x" });
   assert.match(validateEnvelope({ ...base, doc: "nope" }).join(" "), /doc must be an object/);

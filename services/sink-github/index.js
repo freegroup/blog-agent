@@ -4,6 +4,7 @@ import path from "node:path";
 import sharp from "sharp";
 import { stringify } from "yaml";
 import { formatRef, parseRef } from "@blogagent/envelope";
+import { getImageData } from "@blogagent/image";
 import { connectOne } from "@blogagent/mcp";
 import { config, assertSecrets } from "./config.js";
 import { GitHub, commitFiles } from "./github.js";
@@ -56,7 +57,7 @@ async function publish(payload) {
   ];
 
   for (const img of images) {
-    const resized = await sharp(Buffer.from(img.data, "base64"))
+    const resized = await sharp(Buffer.from(getImageData(img), "base64"))
       .resize({ width: config.BLOG_WIDTH, withoutEnlargement: true })
       .webp({ quality: config.BLOG_QUALITY })
       .toBuffer();

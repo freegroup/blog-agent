@@ -16,7 +16,12 @@ import { randomUUID } from "node:crypto";
  * along the envelope so the chain stays composable — a source may point straight
  * at the newsroom and then `context` is simply absent (`null`).
  *
- * @typedef {{kind:'image', mime:string, data:string}} Medium   data = base64
+ * @typedef {{kind:'image', data:string, source?:'user'|'ai'|'ai-enriched', data_original?:string}} Medium
+ *   `data` is a self-describing data URI (`data:<mime>;base64,<bytes>`) — the mime rides
+ *   with the bytes, so there is no separate `mime` field, and the value pastes straight
+ *   into a browser to view it. Build/read it only through `@blogagent/image`. `source`
+ *   tells where the picture came from (a user upload, freshly generated, or a user upload
+ *   the model improved); `data_original` keeps the untouched user image on an enriched one.
  * @typedef {{author?:string, body:string, at?:string}} Comment
  * @typedef {{target_url:string|null, reference_urls:string[]}} Context
  * @typedef {{
@@ -86,7 +91,7 @@ export function validateEnvelope(env) {
 
   for (const [i, m] of (media ?? []).entries()) {
     if (m?.kind !== "image") errors.push(`media[${i}].kind must be 'image'`);
-    if (typeof m?.mime !== "string") errors.push(`media[${i}].mime missing`);
+    // The mime lives inside `data` (a data URI) now — no separate field to check.
     if (typeof m?.data !== "string") errors.push(`media[${i}].data missing`);
   }
 

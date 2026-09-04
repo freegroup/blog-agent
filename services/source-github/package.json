@@ -7,6 +7,7 @@
   "dependencies": {
     "@blogagent/config": "*",
     "@blogagent/envelope": "*",
+    "@blogagent/image": "*",
     "@blogagent/sink-github": "*",
     "yaml": "^2.9.0"
   }

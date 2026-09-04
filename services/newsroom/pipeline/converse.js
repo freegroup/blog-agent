@@ -1,4 +1,5 @@
 import { StageError } from "./stage.js";
+import { getImageData, getImageMimeType } from "@blogagent/image";
 
 /**
  * The conversation mechanics every LLM-backed stage shares.
@@ -58,7 +59,8 @@ export function reviewNote(doc, fieldLabel, current) {
 }
 
 function firstTurn({ context, instruction, images }) {
-  const blocks = (images ?? []).map((i) => ({ type: "image", mime: "image/webp", data: i.data }));
+  // The LLM layer wants bare base64 + a separate mime; unpack the data URI here.
+  const blocks = (images ?? []).map((i) => ({ type: "image", mime: getImageMimeType(i), data: getImageData(i) }));
   blocks.push({ type: "text", text: [context, instruction].filter(Boolean).join("\n\n---\n\n") });
   return [{ role: "user", content: blocks }];
 }

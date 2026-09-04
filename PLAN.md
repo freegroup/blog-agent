@@ -121,7 +121,7 @@ Die einzige Form, in der ein Impuls die Redaktion erreicht. Jede Source normalis
   "source_ref": "chat:1234/msg:5678",
   "received_at": "2026-08-31T09:00:00Z",
   "text": "…",
-  "media": [{ "kind": "image", "mime": "image/jpeg", "data": "<base64>" }],
+  "media": [{ "kind": "image", "data": "data:image/jpeg;base64,<bytes>", "source": "user" }],
   "revises": null,
   "doc": null,
   "review": [],
@@ -129,7 +129,9 @@ Die einzige Form, in der ein Impuls die Redaktion erreicht. Jede Source normalis
 }
 ```
 
-- `media`: base64 inline (kein URL-Transport). Darf leer sein.
+- `media`: Bilder inline als **Data-URI** (`data:<mime>;base64,<bytes>`) — selbstbeschreibend,
+  im Browser aufrufbar, gekapselt in `@blogagent/image`. `source` (`user`/`ai`/`ai-enriched`)
+  hält die Herkunft fest; ein aufgewertetes Bild trägt zusätzlich `data_original`. Darf leer sein.
 - `revises`: `github:<owner>/<repo>#<nr>` oder `null`. **Ableitbar, nicht opak** — eine Source
   baut ihn selbst. Pipeline-Feld, wird unverändert an den Sink durchgereicht; das Modell sieht
   ihn nicht.

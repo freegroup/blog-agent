@@ -1,6 +1,7 @@
 import { Stage } from "./stage.js";
 import { askTool } from "./converse.js";
 import { resizeToWebp } from "../media.js";
+import { buildImageUri } from "@blogagent/image";
 import { _intern } from "@blogagent/sink-github/validate.js";
 
 /**
@@ -42,7 +43,15 @@ const BILD_PROMPTS = {
               type: "string",
               description:
                 "Ein bildgeneratortauglicher Prompt auf Englisch, der EIN Foto beschreibt — passend zu dem Absatz, " +
-                "in dem der Platzhalter im Artikel steht, und zu den Bildvorgaben des Briefings. Kein Text im Bild, keine Logos.",
+                "in dem der Platzhalter im Artikel steht, und zu den Bildvorgaben des Briefings. Kein Text im Bild, keine Logos. " +
+                "Bei einer Aufwertung (enrich_from) beschreibt der Prompt, WIE das User-Foto verbessert werden soll.",
+            },
+            enrich_from: {
+              type: "string",
+              description:
+                "Nur wenn dieses Bild ein vom Nutzer geliefertes Foto aufwerten soll (image-to-image): der Dateiname " +
+                "genau dieses User-Fotos als Vorlage. Sonst weglassen — dann wird das Bild frisch erzeugt. Nur nutzen, " +
+                "wenn die Bildvorgaben des Briefings das Aufwerten von User-Bildern erlauben.",
             },
           },
           required: ["name", "prompt"],
@@ -64,10 +73,12 @@ export class IllustrateStage extends Stage {
     const referenced = [...new Set(_intern.imageRefs(doc.markdown ?? ""))].filter((n) => SAFE_NAME.test(n));
     const missing = referenced.filter((n) => !have.has(n));
 
-    // A model call is only needed when something might be drawn: a missing image,
-    // or a revision where the review might ask to redraw an existing one.
+    // A model call is only needed when something might be drawn: a missing image, a
+    // revision where the review might ask to redraw one, or a user photo the model may
+    // enrich (the briefing, which it reads, decides whether it actually does).
+    const hasUserImage = [...have.values()].some((i) => i.source === "user");
     let drawn = new Map();
-    if (ctx.image && (missing.length || doc.revise)) {
+    if (ctx.image && (missing.length || doc.revise || hasUserImage)) {
       drawn = await draw(doc, ctx, referenced, have);
     }
 
@@ -90,7 +101,15 @@ export class IllustrateStage extends Stage {
  * plus — on a revision — any existing one whose change the review demands.
  */
 async function draw(doc, ctx, referenced, have) {
-  const list = referenced.map((n) => `- ${n} ${have.has(n) ? "(Bild vorhanden)" : "(fehlt)"}`).join("\n");
+  const list = referenced
+    .map((n) => {
+      const img = have.get(n);
+      if (!img) return `- ${n} (fehlt)`;
+      return `- ${n} ${img.source === "user" ? "(User-Foto — darf per enrich_from aufgewertet werden)" : "(Bild vorhanden)"}`;
+    })
+    .join("\n");
+  // Let the model SEE the user photos it may enrich, so its prompt can build on them.
+  const userImages = [...have.values()].filter((i) => i.source === "user");
   const review = doc.revise
     ? `\n\n---\n\nÜBERARBEITUNG. Rückmeldungen aus dem Review:\n${(doc.review ?? []).map((c) => `- ${c.author ?? "?"}: ${(c.body ?? "").trim()}`).join("\n") || "(kein Kommentar)"}`
     : "";
@@ -98,11 +117,13 @@ async function draw(doc, ctx, referenced, have) {
   const { input } = await askTool(ctx, {
     stage: "illustrate",
     tool: BILD_PROMPTS,
+    images: userImages,
     context: `ARTIKEL (mit Bild-Platzhaltern)\n\n${doc.markdown}\n\n---\n\nPLATZHALTER:\n${list}${review}`,
     instruction:
-      "Gib über `bild_prompts` für JEDES Bild, das NEU erzeugt werden muss, einen Prompt ab: jedes fehlende " +
-      "Bild, und — bei einer Überarbeitung — jedes vorhandene, dessen Änderung der Review ausdrücklich verlangt. " +
-      "Für Bilder, die unverändert bleiben, gib KEINEN Prompt ab. Jeder Prompt beschreibt EIN Foto passend zum Absatz.",
+      "Gib über `bild_prompts` für JEDES Bild, das NEU erzeugt oder aus einem User-Foto aufgewertet werden muss, einen " +
+      "Prompt ab: jedes fehlende Bild; jedes User-Foto, dessen Aufwertung die Bildvorgaben des Briefings erlauben (dann " +
+      "mit `enrich_from` auf genau diesen Dateinamen); und — bei einer Überarbeitung — jedes vorhandene, dessen Änderung " +
+      "der Review verlangt. Für Bilder, die unverändert bleiben, gib KEINEN Prompt ab. Jeder Prompt beschreibt EIN Foto.",
     validate: (inp) => (Array.isArray(inp?.images) ? [] : ["`images` muss eine Liste von {name, prompt} sein."]),
   });
 
@@ -111,10 +132,14 @@ async function draw(doc, ctx, referenced, have) {
   for (const item of input.images ?? []) {
     const name = item?.name;
     if (!wanted.has(name) || !SAFE_NAME.test(name) || !item.prompt || out.size >= MAX_IMAGES) continue;
+    // Enrichment only when the model points at a real user photo present in this article;
+    // anything else is a fresh generation. The original rides along as `data_original`.
+    const from = item.enrich_from ? have.get(item.enrich_from) : null;
+    const original = from?.source === "user" ? from : null;
     try {
-      const { bytes } = await ctx.image.generate({ prompt: item.prompt });
-      const data = (await resizeToWebp(bytes)).toString("base64");
-      out.set(name, { name, data });
+      const { bytes } = await ctx.image.generate({ prompt: item.prompt, image: original?.data });
+      const data = buildImageUri("image/webp", (await resizeToWebp(bytes)).toString("base64"));
+      out.set(name, original ? { name, data, source: "ai-enriched", data_original: original.data } : { name, data, source: "ai" });
     } catch (err) {
       // A missing image is a shame, not a reason to fail the article — leave the
       // placeholder as a dead link and move on.

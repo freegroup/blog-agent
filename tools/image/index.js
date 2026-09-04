@@ -6,7 +6,7 @@
  * pipeline exactly as if it had come with the pitch. The newsroom only ever sees
  * `{name, data}` WebP images — where the pixels came from is a channel detail.
  *
- * @typedef {{prompt:string, size?:string}} ImageRequest
+ * @typedef {{prompt:string, image?:string, size?:string}} ImageRequest  image: optional source picture (data URI) for image-to-image
  * @typedef {{bytes:Buffer, mime:string}} ImageResult
  */
 

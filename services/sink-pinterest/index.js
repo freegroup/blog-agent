@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import http from "node:http";
 import sharp from "sharp";
+import { getImageData } from "@blogagent/image";
 import { config } from "./config.js";
 import { authUrl, exchangeCode, refreshAccess, createPin } from "./pinterest.js";
 import { upsertEnvVar } from "./token-store.js";
@@ -95,7 +96,7 @@ async function publish(payload) {
   }
 
   // Link back to the URL step-research resolved (may be absent → no link).
-  const imageBase64 = await toJpegBase64(image.data);
+  const imageBase64 = await toJpegBase64(getImageData(image));
   const token = await validAccessToken();
 
   const id = await createPin({

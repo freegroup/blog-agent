@@ -6,6 +6,7 @@ import { config } from "./config.js";
 import { loadBriefings } from "./briefings.js";
 import { deliver } from "./deliver.js";
 import { resizeToWebp } from "./media.js";
+import { getImageData, buildImageUri } from "@blogagent/image";
 import { Queue } from "./queue.js";
 import { chooseChannels } from "./dispatch.js";
 import { buildPipeline, runPipeline, persistable, rehydrate } from "./pipeline/index.js";
@@ -87,8 +88,14 @@ async function handle(pitch, job) {
   // the model cannot invent one that fails the sink's reference check.
   const images = [];
   for (const [i, medium] of pitch.envelope.media.entries()) {
-    const webp = await resizeToWebp(Buffer.from(medium.data, "base64"));
-    images.push({ name: `foto-${i + 1}.webp`, data: webp.toString("base64") });
+    const webp = await resizeToWebp(Buffer.from(getImageData(medium), "base64"));
+    // The pipeline speaks the same data-URI format as the envelope; the picture's
+    // origin (user/ai/…) rides along so a later stage and blogagent.yaml keep it.
+    images.push({
+      name: `foto-${i + 1}.webp`,
+      data: buildImageUri("image/webp", webp.toString("base64")),
+      source: medium.source ?? "user",
+    });
   }
 
   // step-research runs once per pitch, upstream — that hop enriches the envelope

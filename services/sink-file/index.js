@@ -3,6 +3,7 @@ import http from "node:http";
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
+import { getImageData } from "@blogagent/image";
 import { config } from "./config.js";
 import { validatePublish, _intern } from "@blogagent/sink-github/validate.js";
 
@@ -30,7 +31,7 @@ async function publish(payload) {
   writeFileSync(path.join(dir, "index.md"), content);
 
   for (const img of images) {
-    const resized = await sharp(Buffer.from(img.data, "base64"))
+    const resized = await sharp(Buffer.from(getImageData(img), "base64"))
       .resize({ width: config.imageWidth, withoutEnlargement: true })
       .webp({ quality: 82 })
       .toBuffer();
@@ -44,7 +45,7 @@ async function publish(payload) {
   let debugCount = 0;
   for (const img of debug_images) {
     if (!_intern.IMAGE_NAME.test(img.name)) continue;
-    const resized = await sharp(Buffer.from(img.data, "base64"))
+    const resized = await sharp(Buffer.from(getImageData(img), "base64"))
       .resize({ width: config.imageWidth, withoutEnlargement: true })
       .webp({ quality: 82 })
       .toBuffer();
