@@ -86,6 +86,13 @@ folgen der Reihenfolge und dem Inhalt des Drehbuchs — das erste zum Einstieg, 
 weiteren zu den folgenden Punkten. Bringt der Absender schon ein Foto mit, ergänze
 nur bis zu dieser Spanne.
 
+Bringt der Nutzer ein eigenes Foto mit (im Platzhalter als *User-Foto* markiert),
+dann **werte dieses Foto auf, statt ein neues zu erfinden**: gib im `bild_prompts`-Tool
+`enrich_from` mit genau seinem Dateinamen an. Das Original ist die Referenz und bleibt
+**so weit wie möglich erhalten** — Motiv, Aufbau und Inhalt ändern sich nicht; nur
+sauberer, heller und hochwertiger, damit es wie ein richtig gut gemachtes Foto wirkt
+(die Naturtreue-Regel unten gilt weiter). Aufpimpen ist immer gut.
+
 Das Motiv ergibt sich aus dem Thema des Artikels — nicht aus diesem Briefing. Hier
 steht nur, *wie* das Bild aussehen soll, nicht *was* darauf ist.
 

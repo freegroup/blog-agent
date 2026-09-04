@@ -36,6 +36,12 @@ hochgeladen; der Platzhalter erscheint im Post nicht.
 Quadrat (1:1) oder Hochformat (4:5) funktioniert auf Instagram besser als
 Querformat — das berücksichtigt der `illustrate`-Schritt.
 
+Bringt der Nutzer ein eigenes Foto mit (im Platzhalter als *User-Foto* markiert),
+dann **schreib es in Instagram-Stil um, statt ein neues zu erfinden**: gib im
+`bild_prompts`-Tool `enrich_from` mit genau seinem Dateinamen an. Das Original ist die
+Referenz und bleibt **so weit wie möglich erhalten** — Motiv und Inhalt bleiben; nur
+griffiger, kräftiger, feed-tauglich aufgepimpt. Aufwerten ist immer gut.
+
 ## Caption
 
 Der Text wird als Instagram-Caption genutzt. Die ersten ~125 Zeichen sieht man

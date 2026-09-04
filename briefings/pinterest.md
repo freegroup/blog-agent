@@ -21,6 +21,12 @@ suchen nach Ideen und Anleitungen. Schreib für jemanden, der gezielt sucht.
 Hochformat oder Quadrat (4:5 oder 1:1) wirkt auf Pinterest besser als Querformat —
 das berücksichtigt der `illustrate`-Schritt beim Generieren.
 
+Bringt der Nutzer ein eigenes Foto mit (im Platzhalter als *User-Foto* markiert),
+dann **werte es Pin-tauglich auf, statt ein neues zu erfinden**: gib im `bild_prompts`-Tool
+`enrich_from` mit genau seinem Dateinamen an. Das Original ist die Referenz und bleibt
+**so weit wie möglich erhalten** — Motiv und Inhalt bleiben; nur klarer, heller und
+ansprechender aufgepimpt. Aufwerten ist immer gut.
+
 ## Titel und Beschreibung
 
 Der **Titel** (aus dem `title`-Schritt) wird als Pin-Titel verwendet — kurz, konkret,
