@@ -80,14 +80,24 @@ async function pollAccount({ label, token }) {
   if (fresh.length) saveSeen(label, seen);
 }
 
+let watchedLabels = null; // last announced account set — log the roster only when it changes
+
 async function poll() {
   const accounts = accountsFromEnv();
   if (!accounts.length) {
-    console.log("[watch-instagram] no INSTAGRAM_*ACCESS_TOKEN in .env yet — waiting");
+    if (watchedLabels !== "") console.log("[watch-instagram] no INSTAGRAM_*ACCESS_TOKEN in .env yet — waiting");
+    watchedLabels = "";
     return;
   }
+  // Announce the roster on first poll and whenever a token is added/removed, so it is
+  // visible which accounts are watched — without spamming the log every cycle.
+  const labels = accounts.map((a) => a.label).sort().join(", ");
+  if (labels !== watchedLabels) {
+    console.log(`[watch-instagram] watching ${accounts.length} account(s): ${labels}`);
+    watchedLabels = labels;
+  }
   for (const account of accounts) {
-    // One account's failure (e.g. an expired token) must not stop the others.
+    // One account's failure (e.g. an invalid token) must not stop the others.
     await pollAccount(account).catch((err) => console.error(`[watch-instagram] ${account.label}: ${err.message}`));
   }
 }
