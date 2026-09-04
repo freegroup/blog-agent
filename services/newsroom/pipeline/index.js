@@ -2,8 +2,9 @@ import { section } from "@blogagent/config";
 import { createLlm } from "@blogagent/llm";
 import { createImage } from "@blogagent/image";
 import { PlotStage } from "./plot.js";
-import { IllustrateStage } from "./illustrate.js";
 import { ArticleStage } from "./article.js";
+import { FreezeStage } from "./freeze.js";
+import { IllustrateStage } from "./illustrate.js";
 import { DescriptionStage } from "./description.js";
 import { TitleStage } from "./title.js";
 import { SlugStage } from "./slug.js";
@@ -19,8 +20,9 @@ export { Stage, StageError, persistable, rehydrate } from "./stage.js";
  */
 const KINDS = {
   plot: PlotStage,
-  illustrate: IllustrateStage,
   article: ArticleStage,
+  freeze: FreezeStage,
+  illustrate: IllustrateStage,
   description: DescriptionStage,
   title: TitleStage,
   slug: SlugStage,

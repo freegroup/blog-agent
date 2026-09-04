@@ -135,9 +135,8 @@ async function draw(doc, ctx, referenced, have) {
       "Prompt ab: jedes fehlende Bild; jedes User-Foto, dessen Aufwertung die Bildvorgaben des Briefings erlauben (dann " +
       "mit `enrich_from` auf genau diesen Dateinamen); und — bei einer Überarbeitung — jedes vorhandene, dessen Änderung " +
       "der Review verlangt. Für Bilder, die unverändert bleiben, gib KEINEN Prompt ab. Jeder Prompt beschreibt EIN Foto. " +
-      "WICHTIG: Bilder, die als '(User-Original — NICHT verändern)' markiert sind oder für die der Nutzer in seinem Text " +
-      "sagt, das Bild soll nicht bearbeitet werden, NIEMALS in bild_prompts aufnehmen — sie werden automatisch unverändert " +
-      "mit source: original übernommen.",
+      "WICHTIG: Bilder, die als '(User-Original — NICHT verändern)' markiert sind, NIEMALS in bild_prompts aufnehmen — " +
+      "sie wurden von der Redaktion eingefroren und werden unverändert übernommen.",
     validate: (inp) => (Array.isArray(inp?.images) ? [] : ["`images` muss eine Liste von {name, prompt} sein."]),
   });
 
