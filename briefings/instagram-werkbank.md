@@ -37,6 +37,14 @@ hochgeladen; der Platzhalter erscheint im Post nicht.
 Quadrat (1:1) oder Hochformat (4:5) funktioniert auf Instagram besser als
 Querformat — das berücksichtigt der `illustrate`-Schritt.
 
+**Das Motiv zeigt das konkrete Thema des Posts** — es ergibt sich aus dem Inhalt von
+Artikel und Caption, nicht aus einer generisch-hübschen Werkstatt-Kulisse. Zeig, *worum
+es geht*: bei einem 3D-Druck-Objekt das gedruckte Teil, bei einer CNC-Fräsung das
+Werkstück/den Span, bei Holz die konkrete Verbindung oder Oberfläche. Eine hübsche
+Werkbank **ohne** Bezug zum Thema ist zu wenig — attraktiv **und** on-topic, und im
+Zweifel geht der Themenbezug vor. Ein echtes, glaubwürdiges Foto, kein künstlicher
+KI-Look, kein Text und kein Logo im Bild.
+
 Bringt der Nutzer ein eigenes Foto mit (im Platzhalter als *User-Foto* markiert),
 dann **schreib es in Instagram-Stil um, statt ein neues zu erfinden**: gib im
 `bild_prompts`-Tool `enrich_from` mit genau seinem Dateinamen an. Das Original ist die
