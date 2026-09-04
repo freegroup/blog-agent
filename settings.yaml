@@ -17,19 +17,19 @@ newsroom:
     llm: quick
 
   # Reihenfolge der Pipeline-Stufen. Eine Stufe einschieben = Datei in pipeline/ + Eintrag hier.
-  # article setzt Bild-Platzhalter, freeze schützt User-Fotos die unverändert bleiben
+  # article setzt Bild-Platzhalter, freeze_images schützt User-Fotos die unverändert bleiben
   # sollen, illustrate erzeugt die Bilder danach mit dem fertigen Kontext.
-  pipeline: [plot, article, freeze, illustrate, description, title, slug]
+  pipeline: [plot, article, freeze_images, illustrate, description, title, slug]
 
   # LLM-Profil und MCP-Werkzeuge je Stufe. llm: null = Stufe rechnet modellfrei.
   stages:
-    plot:        { llm: default, tools: true }
-    article:     { llm: default, tools: true }
-    freeze:      { llm: quick }
-    illustrate:  { llm: default }
-    description: { llm: quick }
-    title:       { llm: quick }
-    slug:        { llm: quick }
+    plot:          { llm: default, tools: true }
+    article:       { llm: default, tools: true }
+    freeze_images: { llm: quick }
+    illustrate:    { llm: default }
+    description:   { llm: quick }
+    title:         { llm: quick }
+    slug:          { llm: quick }
 
 # MCP-Server als Kindprozesse des Newsrooms. Schlüssel = Name, Wert = Kommandozeile.
 mcp:

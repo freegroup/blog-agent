@@ -21,7 +21,7 @@ export { Stage, StageError, persistable, rehydrate } from "./stage.js";
 const KINDS = {
   plot: PlotStage,
   article: ArticleStage,
-  freeze: FreezeStage,
+  freeze_images: FreezeStage,
   illustrate: IllustrateStage,
   description: DescriptionStage,
   title: TitleStage,

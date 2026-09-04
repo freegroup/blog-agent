@@ -37,7 +37,7 @@ const FREEZE = {
 
 export class FreezeStage extends Stage {
   constructor() {
-    super("freeze");
+    super("freeze_images");
   }
 
   async run(doc, ctx) {
