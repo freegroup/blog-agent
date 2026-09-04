@@ -124,20 +124,24 @@ async function draw(doc, ctx, referenced, have) {
   const review = doc.revise
     ? `\n\n---\n\nÜBERARBEITUNG. Rückmeldungen aus dem Review:\n${(doc.review ?? []).map((c) => `- ${c.author ?? "?"}: ${(c.body ?? "").trim()}`).join("\n") || "(kein Kommentar)"}`
     : "";
+  // Show the original pitch so the model can detect "Bild so lassen"-type requests
+  // that may not have made it into the article text.
+  const pitch = doc.text ? `\n\n---\n\nORIGINALER PITCH DES NUTZERS:\n${doc.text}` : "";
 
   const { input } = await askTool(ctx, {
     stage: "illustrate",
     tool: BILD_PROMPTS,
     images: userImages,
-    context: `ARTIKEL (mit Bild-Platzhaltern)\n\n${doc.markdown}\n\n---\n\nPLATZHALTER:\n${list}${review}`,
+    context: `ARTIKEL (mit Bild-Platzhaltern)\n\n${doc.markdown}\n\n---\n\nPLATZHALTER:\n${list}${pitch}${review}`,
     instruction:
       "Gib über `bild_prompts` für JEDES Bild, das NEU erzeugt oder aus einem User-Foto aufgewertet werden muss, einen " +
       "Prompt ab: jedes fehlende Bild; jedes User-Foto, dessen Aufwertung die Bildvorgaben des Briefings erlauben (dann " +
       "mit `enrich_from` auf genau diesen Dateinamen); und — bei einer Überarbeitung — jedes vorhandene, dessen Änderung " +
       "der Review verlangt. Für Bilder, die unverändert bleiben, gib KEINEN Prompt ab. Jeder Prompt beschreibt EIN Foto. " +
-      "WICHTIG: Bilder, die als '(User-Original — NICHT verändern)' markiert sind oder für die der Nutzer in seinem Text " +
-      "sagt, das Bild soll nicht bearbeitet werden, NIEMALS in bild_prompts aufnehmen — sie werden automatisch unverändert " +
-      "mit source: original übernommen.",
+      "WICHTIG: Prüfe den originalen Pitch des Nutzers. Sagt er dort ausdrücklich, ein Foto soll nicht verändert/bearbeitet " +
+      "werden (z. B. 'Bild so lassen', 'nicht verändern', 'original lassen', 'nicht ändern'): dieses Bild NICHT in " +
+      "bild_prompts aufnehmen — es wird automatisch unverändert als source:original übernommen. Ebenso Bilder, " +
+      "die als '(User-Original — NICHT verändern)' markiert sind.",
     validate: (inp) => (Array.isArray(inp?.images) ? [] : ["`images` muss eine Liste von {name, prompt} sein."]),
   });
 
