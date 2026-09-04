@@ -65,6 +65,10 @@ Der Text wird als Instagram-Caption genutzt. Die ersten ~125 Zeichen sieht man
 vor dem „mehr"-Klick — die müssen sitzen. Insgesamt max. 2200 Zeichen,
 aber kürzer ist besser: ein, zwei Absätze reichen.
 
+Bringt der Nutzer eine URL mit (z. B. einen Link zu einem Produkt, Artikel oder Projekt),
+nimm sie **immer** in die Caption auf — als Klartext. Links in Instagram-Captions sind
+nicht anklickbar, aber sichtbar und kopierbar.
+
 Am Ende: 3–5 relevante **Hashtags**, passend zum Thema des Posts (z. B.
 `#maker #diy #3ddruck` oder `#cnc #holzwerk #woodworking` oder `#art #handmade`),
 eine Leerzeile vor den Hashtags.
