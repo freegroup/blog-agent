@@ -76,6 +76,7 @@ export class IllustrateStage extends Stage {
     // A model call is only needed when something might be drawn: a missing image, a
     // revision where the review might ask to redraw one, or a user photo the model may
     // enrich (the briefing, which it reads, decides whether it actually does).
+    // source: "original" images are already protected — they never trigger a model call.
     const hasUserImage = [...have.values()].some((i) => i.source === "user");
     let drawn = new Map();
     if (ctx.image && (missing.length || doc.revise || hasUserImage)) {
@@ -84,8 +85,16 @@ export class IllustrateStage extends Stage {
 
     // Final set, in the article's order: a freshly drawn image wins over an
     // existing one of the same name; otherwise keep what we already had.
+    // User photos that were not processed by AI are marked "original" — they were
+    // either explicitly protected by the user ("Bild so lassen") or simply not
+    // enriched. Either way the pipeline touched nothing, and the label says so.
     const images = referenced
-      .map((n) => drawn.get(n) ?? have.get(n))
+      .map((n) => {
+        const img = drawn.get(n) ?? have.get(n);
+        if (!img) return null;
+        if (img.source === "user" && !drawn.has(n)) return { ...img, source: "original" };
+        return img;
+      })
       .filter(Boolean);
     const kept = new Set(images.map((i) => i.name));
     const imagesDropped = (doc.images ?? []).filter((i) => !kept.has(i.name));
@@ -105,7 +114,9 @@ async function draw(doc, ctx, referenced, have) {
     .map((n) => {
       const img = have.get(n);
       if (!img) return `- ${n} (fehlt)`;
-      return `- ${n} ${img.source === "user" ? "(User-Foto — darf per enrich_from aufgewertet werden)" : "(Bild vorhanden)"}`;
+      if (img.source === "user") return `- ${n} (User-Foto — darf per enrich_from aufgewertet werden)`;
+      if (img.source === "original") return `- ${n} (User-Original — NICHT verändern, nicht in bild_prompts aufnehmen)`;
+      return `- ${n} (Bild vorhanden)`;
     })
     .join("\n");
   // Let the model SEE the user photos it may enrich, so its prompt can build on them.
@@ -123,7 +134,10 @@ async function draw(doc, ctx, referenced, have) {
       "Gib über `bild_prompts` für JEDES Bild, das NEU erzeugt oder aus einem User-Foto aufgewertet werden muss, einen " +
       "Prompt ab: jedes fehlende Bild; jedes User-Foto, dessen Aufwertung die Bildvorgaben des Briefings erlauben (dann " +
       "mit `enrich_from` auf genau diesen Dateinamen); und — bei einer Überarbeitung — jedes vorhandene, dessen Änderung " +
-      "der Review verlangt. Für Bilder, die unverändert bleiben, gib KEINEN Prompt ab. Jeder Prompt beschreibt EIN Foto.",
+      "der Review verlangt. Für Bilder, die unverändert bleiben, gib KEINEN Prompt ab. Jeder Prompt beschreibt EIN Foto. " +
+      "WICHTIG: Bilder, die als '(User-Original — NICHT verändern)' markiert sind oder für die der Nutzer in seinem Text " +
+      "sagt, das Bild soll nicht bearbeitet werden, NIEMALS in bild_prompts aufnehmen — sie werden automatisch unverändert " +
+      "mit source: original übernommen.",
     validate: (inp) => (Array.isArray(inp?.images) ? [] : ["`images` muss eine Liste von {name, prompt} sein."]),
   });
 
@@ -132,6 +146,9 @@ async function draw(doc, ctx, referenced, have) {
   for (const item of input.images ?? []) {
     const name = item?.name;
     if (!wanted.has(name) || !SAFE_NAME.test(name) || !item.prompt || out.size >= MAX_IMAGES) continue;
+    // source: "original" images are protected — even if the model accidentally included
+    // them, the code never processes them with AI.
+    if (have.get(name)?.source === "original") continue;
     // Enrichment only when the model points at a real user photo present in this article;
     // anything else is a fresh generation. The original rides along as `data_original`.
     const from = item.enrich_from ? have.get(item.enrich_from) : null;

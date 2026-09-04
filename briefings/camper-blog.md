@@ -93,6 +93,10 @@ dann **werte dieses Foto auf, statt ein neues zu erfinden**: gib im `bild_prompt
 sauberer, heller und hochwertiger, damit es wie ein richtig gut gemachtes Foto wirkt
 (die Naturtreue-Regel unten gilt weiter). Aufpimpen ist immer gut.
 
+Sagt der Nutzer ausdrücklich, das Foto soll **nicht verändert/bearbeitet** werden
+(z. B. „Bild so lassen", „nicht verändern", „Foto bitte original"): nimm es **nicht**
+in `bild_prompts` auf — es wird dann automatisch unverändert übernommen.
+
 Das Motiv ergibt sich aus dem Thema des Artikels — nicht aus diesem Briefing. Hier
 steht nur, *wie* das Bild aussehen soll, nicht *was* darauf ist.
 

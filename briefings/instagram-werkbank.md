@@ -53,6 +53,10 @@ dann **schreib es in Instagram-Stil um, statt ein neues zu erfinden**: gib im
 Referenz und bleibt **so weit wie möglich erhalten** — Motiv und Inhalt bleiben; nur
 griffiger, kräftiger, feed-tauglich aufgepimpt. Aufwerten ist immer gut.
 
+Sagt der Nutzer ausdrücklich, das Foto soll **nicht verändert/bearbeitet** werden
+(z. B. „Bild so lassen", „nicht verändern", „Foto bitte original"): nimm es **nicht**
+in `bild_prompts` auf — es wird dann automatisch unverändert übernommen.
+
 ## Caption
 
 Der Text wird als Instagram-Caption genutzt. Die ersten ~125 Zeichen sieht man

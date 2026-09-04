@@ -182,6 +182,40 @@ test("illustrate enriches a user photo via enrich_from (image-to-image), keeping
   assert.notEqual(getImageData(img.data), getImageData(original), "the stored bytes are the reworked ones");
 });
 
+test("illustrate marks a user photo as original when the model omits it from bild_prompts", async () => {
+  const doc = DOC({ markdown: "![](foto-1.webp)", images: [{ name: "foto-1.webp", data: "USER", source: "user" }] });
+  const out = await new IllustrateStage().run(
+    doc,
+    ctxWith(fakeLlm([bilds([])]), { image: boom }), // model says: nothing to draw
+  );
+  assert.equal(out.images[0].source, "original", "untouched user photo is marked original");
+  assert.equal(out.images[0].data, "USER", "data is unchanged");
+});
+
+test("illustrate code-protects source:original even if model accidentally lists it for redraw", async () => {
+  const image = fakeImage();
+  // One missing placeholder triggers draw() — but the "original" image must not be touched.
+  const doc = DOC({
+    markdown: "![](foto-1.webp)\n\n![](foto-2.webp)",
+    images: [{ name: "foto-1.webp", data: "ORIG", source: "original" }],
+  });
+  const out = await new IllustrateStage().run(
+    doc,
+    ctxWith(
+      fakeLlm([bilds([
+        { name: "foto-2.webp", prompt: "a new photo" },
+        { name: "foto-1.webp", prompt: "rework the original" }, // should be blocked
+      ])]),
+      { image },
+    ),
+  );
+  const protected_ = out.images.find((i) => i.name === "foto-1.webp");
+  assert.equal(protected_.source, "original", "source:original is not overwritten by AI");
+  assert.equal(protected_.data, "ORIG", "data unchanged");
+  assert.equal(image.calls.length, 1, "only foto-2 was generated, not the protected original");
+});
+
+
 test("illustrate is a no-op without an image provider — dead refs stay, no model call", async () => {
   const llm = fakeLlm([]);
   const out = await new IllustrateStage().run(DOC({ markdown: "![](foto-1.webp)" }), ctxWith(llm)); // ctx.image undefined

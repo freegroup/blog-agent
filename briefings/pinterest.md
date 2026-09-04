@@ -27,6 +27,10 @@ dann **werte es Pin-tauglich auf, statt ein neues zu erfinden**: gib im `bild_pr
 **so weit wie möglich erhalten** — Motiv und Inhalt bleiben; nur klarer, heller und
 ansprechender aufgepimpt. Aufwerten ist immer gut.
 
+Sagt der Nutzer ausdrücklich, das Foto soll **nicht verändert/bearbeitet** werden
+(z. B. „Bild so lassen", „nicht verändern", „Foto bitte original"): nimm es **nicht**
+in `bild_prompts` auf — es wird dann automatisch unverändert übernommen.
+
 ## Titel und Beschreibung
 
 Der **Titel** (aus dem `title`-Schritt) wird als Pin-Titel verwendet — kurz, konkret,
