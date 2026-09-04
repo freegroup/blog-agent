@@ -11,6 +11,37 @@ import { Queue } from "./queue.js";
 import { chooseChannels } from "./dispatch.js";
 import { buildPipeline, runPipeline, persistable, rehydrate } from "./pipeline/index.js";
 
+function stageSummary(name, doc) {
+  switch (name) {
+    case "plot":
+      return doc.plot ? `${doc.plot.trim().split(/\s+/).length} Wörter` : "";
+    case "article":
+      return doc.markdown ? `${doc.markdown.length} Zeichen` : "";
+    case "freeze_images": {
+      const n = (doc.images ?? []).filter((i) => i.source === "original").length;
+      return n ? `${n} Bild${n !== 1 ? "er" : ""} eingefroren` : "nichts eingefroren";
+    }
+    case "illustrate": {
+      const imgs = doc.images ?? [];
+      const parts = [
+        imgs.filter((i) => i.source === "ai").length > 0 && `${imgs.filter((i) => i.source === "ai").length} generiert`,
+        imgs.filter((i) => i.source === "ai-enriched").length > 0 && `${imgs.filter((i) => i.source === "ai-enriched").length} aufgewertet`,
+        imgs.filter((i) => i.source === "original").length > 0 && `${imgs.filter((i) => i.source === "original").length} eingefroren`,
+        (doc.imagesDropped ?? []).length > 0 && `${doc.imagesDropped.length} verworfen`,
+      ].filter(Boolean);
+      return parts.length ? parts.join(" · ") : "kein Bild";
+    }
+    case "description":
+      return doc.description ? `„${doc.description.slice(0, 70)}${doc.description.length > 70 ? "…" : ""}"` : "";
+    case "title":
+      return doc.title ? `„${doc.title}"` : "";
+    case "slug":
+      return doc.slug ?? "";
+    default:
+      return "";
+  }
+}
+
 /**
  * The newsroom: accepts pitches, runs them through the pipeline, submits to the sink.
  *
@@ -145,7 +176,8 @@ async function handle(pitch, job) {
     // running job has come and the whole article as it stands.
     onSave: (name, produced) => {
       queue.save(pitch.id, job.briefing, name, persistable(produced));
-      console.log(`[newsroom] ${pitch.id.slice(0, 8)}/${job.briefing} · ${name} ✓`);
+      const summary = stageSummary(name, produced);
+      console.log(`[newsroom] ${pitch.id.slice(0, 8)}/${job.briefing} · ${name} ✓${summary ? `  ${summary}` : ""}`);
     },
   });
 
