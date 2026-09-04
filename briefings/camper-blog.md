@@ -105,7 +105,10 @@ Stil: hochwertige, ansprechende Reise- und Vanlife-Fotografie — die Art Bild, 
 man auf Instagram oder Pinterest speichert. Schönes, warmes Licht (goldene Stunde,
 weiches Tageslicht), einladende Komposition, aufgeräumt und einladend. Es darf
 richtig gut aussehen und Lust machen. Satte, natürliche Farben. Breites Querformat.
-Nie Text, keine Logos, keine Diagramme.
+Nie Text, keine Logos, keine Diagramme. **Insbesondere KEINE Schaltpläne, Schaltbilder
+oder Verkabelungs-/Anschluss-Zeichnungen** — die Bild-KI stellt sie ohnehin falsch dar
+(falsche Symbole, unsinnige Verbindungen). Zeig stattdessen die reale Szene oder das
+echte Bauteil als Foto.
 
 Ausdrücklich **erwünscht** ist die gepflegte, ästhetische Insta-/Pinterest-Anmutung:
 hell, freundlich, aspirational — ein Bild, das gefällt. **Nicht** abgerockt,
