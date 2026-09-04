@@ -99,8 +99,9 @@ sink-instagram:
   github_repo: freegroup/blog-agent
   github_branch: instagram-assets
   redirect_uri: http://localhost:5087/oauth/callback
-  # An die Caption gehängt, wenn der Pitch keinen target_url mitbringt (Instagram-Links sind nicht klickbar).
-  default_link: https://camper-elektrik-planer.de/blog/
+  # Feed-Captions können keinen klickbaren Link tragen — statt einer toten URL hängt die Caption
+  # diesen "Link in Bio"-Hinweis an. Den echten Link trägt jedes Konto in seine Profil-Bio.
+  caption_cta: "🔗 Link in Bio"
 
 sink-pinterest:
   port: 5086

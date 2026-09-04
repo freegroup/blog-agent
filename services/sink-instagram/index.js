@@ -140,22 +140,21 @@ async function toJpegBuffer(webpBase64) {
   return sharp(Buffer.from(webpBase64, "base64")).jpeg({ quality: 85 }).toBuffer();
 }
 
-function buildCaption(title, description, link) {
-  const parts = [title?.trim(), description?.trim(), link?.trim()].filter(Boolean);
+function buildCaption(title, description, cta) {
+  const parts = [title?.trim(), description?.trim(), cta?.trim()].filter(Boolean);
   return parts.join("\n\n") || "";
 }
 
 async function publish(payload) {
-  const { slug, title, description, images = [], meta, briefing } = payload ?? {};
+  const { slug, title, description, images = [], briefing } = payload ?? {};
   // Which Instagram profile: named by the briefing, else the default account.
   const account = briefing?.account || null;
 
   const image = images[0];
   if (!image) return { status: 400, body: { errors: ["an Instagram post needs an image — none in this article"] } };
 
-  // The URL step-research resolved, or the configured fallback (never empty in practice).
-  const link = meta?.context?.target_url || config.defaultLink;
-  const caption = buildCaption(title, description, link);
+  // Feed captions can't carry a clickable link — end with a "link in bio" CTA instead.
+  const caption = buildCaption(title, description, config.captionCta);
 
   if (!isAuthorized(account)) {
     console.log(`[sink-instagram] DRY RUN (account ${label(account)}) — would post:`);

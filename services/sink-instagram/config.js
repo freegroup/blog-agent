@@ -32,8 +32,9 @@ export function buildConfig(settings, env) {
     apiUrl: cfg.str("api_url", "https://graph.instagram.com"),
     githubRepo: cfg.str("github_repo"),
     githubBranch: cfg.str("github_branch", DEFAULT_BRANCH),
-    // Appended to the caption when the pitch carries no target_url (Instagram links are not clickable).
-    defaultLink: cfg.str("default_link", ""),
+    // Feed captions can't carry a clickable link, so the caption ends with a
+    // "link in bio" call-to-action instead of a dead URL. Set to "" to omit it.
+    captionCta: cfg.str("caption_cta", "🔗 Link in Bio"),
     // Must match the URI registered in the Instagram app EXACTLY (port and path included).
     redirectUri: cfg.str("redirect_uri", `http://localhost:${port}/oauth/callback`),
     // Fixed OAuth hosts for Instagram Login — not configurable (no sandbox for Instagram).

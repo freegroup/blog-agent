@@ -14,7 +14,7 @@ function fakeSettings(overrides = {}) {
 }
 
 test("buildConfig turns settings + env into static vars", () => {
-  const c = buildConfig(fakeSettings({ github_branch: "custom-assets", default_link: "https://example.test" }), {
+  const c = buildConfig(fakeSettings({ github_branch: "custom-assets", caption_cta: "→ mehr im Profil" }), {
     INSTAGRAM_APP_ID: "app",
     INSTAGRAM_APP_SECRET: "sec",
     GITHUB_TOKEN: "tok",
@@ -27,7 +27,7 @@ test("buildConfig turns settings + env into static vars", () => {
   assert.equal(c.port, 5087);
   assert.equal(c.githubRepo, "freegroup/CampingElectricCalculator");
   assert.equal(c.githubBranch, "custom-assets");
-  assert.equal(c.defaultLink, "https://example.test");
+  assert.equal(c.captionCta, "→ mehr im Profil");
   assert.equal(c.appId, "app");
   assert.equal(c.appSecret, "sec");
   assert.equal(c.githubToken, "tok");
@@ -44,7 +44,7 @@ test("buildConfig applies defaults for optional keys", () => {
   const c = buildConfig(fakeSettings(), {});
   assert.equal(c.apiUrl, "https://graph.instagram.com");
   assert.equal(c.githubBranch, "instagram-assets", "the default assets branch lives in config, not github-assets.js");
-  assert.equal(c.defaultLink, "");
+  assert.equal(c.captionCta, "🔗 Link in Bio", "default CTA when settings omit it");
   assert.equal(c.redirectUri, "http://localhost:5087/oauth/callback");
 });
 
