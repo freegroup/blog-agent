@@ -1,18 +1,42 @@
 #!/usr/bin/env node
 import http from "node:http";
+import { exec } from "node:child_process";
 import { config } from "./config.js";
 
 /**
  * Debug sink — receives publish payloads and shows them in a local browser UI.
  * Nothing is persisted; everything lives in memory and is gone on restart.
  *
- * POST /publish  → stores the article (title + markdown + images) in memory
+ * POST /publish  → stores the article (title + markdown + images) in memory,
+ *                  opens the browser on the first post, pushes a reload to all
+ *                  open SSE clients on every post
  * GET  /         → renders all stored articles as a simple HTML page
+ * GET  /events   → SSE stream; the page subscribes and reloads on new posts
  * POST /delete   → removes one article by id (form submit, redirects back to /)
+ * POST /clear    → removes all articles
  */
+
+const URL = `http://127.0.0.1:${config.port}/`;
 
 let nextId = 1;
 const posts = new Map();
+
+// SSE clients waiting for reload notifications.
+const sseClients = new Set();
+
+function broadcast() {
+  for (const res of sseClients) {
+    try { res.write("data: reload\n\n"); } catch { sseClients.delete(res); }
+  }
+}
+
+// Open the browser exactly once — on the first incoming post.
+let browserOpened = false;
+function openBrowser() {
+  if (browserOpened) return;
+  browserOpened = true;
+  exec(`open ${URL}`, (err) => { if (err) console.error("[sink-ui] could not open browser:", err.message); });
+}
 
 function esc(str) {
   return String(str ?? "")
@@ -70,6 +94,10 @@ function renderPage(items) {
     h1   { font-size: 1.3rem; margin: 0 0 20px; color: #333; }
     .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
   </style>
+  <script>
+    const es = new EventSource("/events");
+    es.onmessage = () => location.reload();
+  </script>
 </head>
 <body>
   <div class="toolbar">
@@ -100,11 +128,26 @@ const server = http.createServer(async (req, res) => {
       const id = nextId++;
       posts.set(id, { id, ...payload, receivedAt: new Date().toISOString() });
       console.log(`[sink-ui] #${id} received: ${payload.slug ?? payload.briefing ?? "?"}`);
+      openBrowser();
+      broadcast();
       json(200, { ok: true, id });
     } catch (err) {
       console.error("[sink-ui] bad payload:", err.message);
       json(400, { errors: [err.message] });
     }
+    return;
+  }
+
+  // SSE — keep connection open; push "reload" on each new post.
+  if (req.method === "GET" && req.url === "/events") {
+    res.writeHead(200, {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+    });
+    res.write(": connected\n\n");
+    sseClients.add(res);
+    req.on("close", () => sseClients.delete(res));
     return;
   }
 
@@ -132,7 +175,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(config.port, "127.0.0.1", () =>
-  console.log(`[sink-ui] :${config.port}  →  http://127.0.0.1:${config.port}/`),
+  console.log(`[sink-ui] :${config.port}  →  ${URL}`),
 );
 
 for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => server.close(() => process.exit(0)));
